@@ -2,17 +2,7 @@
 
 import { useState } from "react";
 import type { TripConfig } from "@/lib/types";
-
-const QUICK_PICKS = [
-  "Madikeri, Coorg",
-  "Kolagappara, Wayanad",
-  "Varkala",
-  "Kodaikanal",
-  "Coonoor",
-  "Gokarna",
-  "Munnar",
-  "Kalasa, Chikkamagaluru",
-];
+import { REGION_SETS } from "@/lib/plans";
 
 function todayPlus(days: number): string {
   const d = new Date();
@@ -21,24 +11,48 @@ function todayPlus(days: number): string {
 }
 
 export default function ConfigForm({
+  initial,
+  initialName,
+  onNameChange,
   onRun,
   running,
 }: {
+  initial?: TripConfig | null;
+  initialName?: string;
+  onNameChange?: (name: string) => void;
   onRun: (cfg: TripConfig) => void;
   running: boolean;
 }) {
-  const [destText, setDestText] = useState("");
-  const [picked, setPicked] = useState<string[]>([]);
-  const [checkin, setCheckin] = useState(todayPlus(37));
-  const [checkout, setCheckout] = useState(todayPlus(65));
-  const [adults, setAdults] = useState(4);
-  const [currency, setCurrency] = useState("INR (₹)");
-  const [seating, setSeating] = useState<TripConfig["seating"]>("entire-preferred");
-  const [mustHaveWifi, setMustHaveWifi] = useState(true);
-  const [mustHaveWorkspace, setMustHaveWorkspace] = useState(true);
-  const [guestFavouriteOnly, setGuestFavouriteOnly] = useState(false);
-  const [budgetPerMonth, setBudgetPerMonth] = useState("");
-  const [extraNotes, setExtraNotes] = useState("");
+  const [planName, setPlanName] = useState(initialName ?? "");
+  const [activeSet, setActiveSet] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>(initial?.destinations?.filter((d) => REGION_SETS.some((r) => r.places.includes(d))) ?? []);
+  const [destText, setDestText] = useState(
+    initial?.destinations
+      ?.filter((d) => !picked.includes(d))
+      .join("; ") ?? "",
+  );
+  const [checkin, setCheckin] = useState(initial?.checkin ?? todayPlus(37));
+  const [checkout, setCheckout] = useState(initial?.checkout ?? todayPlus(65));
+  const [adults, setAdults] = useState(initial?.adults ?? 4);
+  const [currency, setCurrency] = useState(initial?.currency ?? "INR (₹)");
+  const [seating, setSeating] = useState<TripConfig["seating"]>(initial?.seating ?? "entire-preferred");
+  const [mustHaveWifi, setMustHaveWifi] = useState(initial?.mustHaveWifi ?? true);
+  const [mustHaveWorkspace, setMustHaveWorkspace] = useState(initial?.mustHaveWorkspace ?? true);
+  const [guestFavouriteOnly, setGuestFavouriteOnly] = useState(initial?.guestFavouriteOnly ?? false);
+  const [budgetPerMonth, setBudgetPerMonth] = useState(initial?.budgetPerMonth ?? "");
+  const [extraNotes, setExtraNotes] = useState(initial?.extraNotes ?? "");
+
+  const setName = (value: string) => {
+    setPlanName(value);
+    onNameChange?.(value);
+  };
+
+  const applySet = (setLabel: string) => {
+    const set = REGION_SETS.find((r) => r.label === setLabel);
+    if (!set) return;
+    setActiveSet(setLabel === activeSet ? null : setLabel);
+    setPicked(setLabel === activeSet ? [] : set.places);
+  };
 
   const togglePick = (p: string) =>
     setPicked((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
@@ -70,16 +84,37 @@ export default function ConfigForm({
 
   return (
     <div className="card animate-fade-up p-6 sm:p-8">
-      <h2 className="text-lg font-semibold text-white">Plan the research run</h2>
-      <p className="mt-1 text-sm text-slate-400">
-        Any destinations, any dates — the agent team handles the rest.
-      </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <span className="label">Trip name</span>
+          <input
+            value={planName}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. South India Dec 2026 · Portugal summer · Bali month"
+            className="field text-base font-semibold"
+          />
+        </div>
+      </div>
+
+      <h2 className="sr-only">Plan the research run</h2>
 
       {/* destinations */}
       <div className="mt-6">
-        <span className="label">Destinations · pick or type</span>
+        <span className="label">Quick-start sets</span>
         <div className="flex flex-wrap gap-2">
-          {QUICK_PICKS.map((p) => (
+          {REGION_SETS.map((r) => (
+            <button
+              key={r.label}
+              onClick={() => applySet(r.label)}
+              className={`chip ${activeSet === r.label ? "chip-active" : ""}`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <span className="label mt-4">Destinations · tap to include/exclude, or type your own</span>
+        <div className="flex flex-wrap gap-2">
+          {(REGION_SETS.find((r) => r.label === activeSet)?.places ?? []).map((p) => (
             <button
               key={p}
               onClick={() => togglePick(p)}
@@ -93,7 +128,7 @@ export default function ConfigForm({
           value={destText}
           onChange={(e) => setDestText(e.target.value)}
           rows={2}
-          placeholder="…or type your own, semicolon-separated:  Lisbon ; Ericeira ; Madeira"
+          placeholder="…anywhere on earth, semicolon-separated:  Lisbon ; Ericeira ; Tarifa ; Pokhara"
           className="field mt-3 resize-none font-mono text-xs"
         />
         <p className="mt-1.5 text-xs text-slate-500">
@@ -181,7 +216,7 @@ export default function ConfigForm({
           <input
             value={budgetPerMonth}
             onChange={(e) => setBudgetPerMonth(e.target.value)}
-            placeholder="e.g. under ₹1,00,000/month total"
+            placeholder="e.g. under ₹1,00,000/month total · €2,500/month"
             className="field"
           />
         </div>
@@ -190,7 +225,7 @@ export default function ConfigForm({
           <input
             value={extraNotes}
             onChange={(e) => setExtraNotes(e.target.value)}
-            placeholder="e.g. quiet mornings, avoid party zones, need parking"
+            placeholder="e.g. quiet mornings, walkable cafés, avoid monsoon belt"
             className="field"
           />
         </div>

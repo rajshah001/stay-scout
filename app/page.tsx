@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ConfigForm from "@/components/ConfigForm";
 import AgentTimeline from "@/components/AgentTimeline";
 import ResultsDashboard from "@/components/ResultsDashboard";
+import { createPlan, loadPlans, persistPlans, type Plan } from "@/lib/plans";
 import type {
   AgentStatus,
   DestinationResult,
@@ -12,14 +13,74 @@ import type {
 } from "@/lib/types";
 
 export default function Home() {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [phase, setPhase] = useState<string>("idle");
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [logs, setLogs] = useState<Record<string, string[]>>({});
-  const [results, setResults] = useState<DestinationResult[]>([]);
-  const [report, setReport] = useState("");
-  const [cfg, setCfg] = useState<TripConfig | null>(null);
   const [error, setError] = useState("");
-  const cfgRef = useRef<TripConfig | null>(null);
+  const resultsRef = useRef<DestinationResult[]>([]);
+  const hydrating = useRef(false);
+  const phaseRef = useRef<string>("idle");
+
+  const setPhaseSafe = useCallback((p: string) => {
+    phaseRef.current = p;
+    setPhase(p);
+  }, []);
+
+  const active = plans.find((p) => p.id === activeId) ?? null;
+  const running =
+    active?.status === "running" && phase !== "done" && phase !== "error";
+
+  // hydrate trips from localStorage once
+  useEffect(() => {
+    const stored = loadPlans();
+    if (stored.length > 0) {
+      setPlans(stored);
+      setActiveId(stored[0].id);
+      hydrate(stored[0]);
+    } else {
+      const first = createPlan();
+      setPlans([first]);
+      setActiveId(first.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const hydrate = (plan: Plan) => {
+    hydrating.current = true;
+    resultsRef.current = plan.results;
+    setAgents([]);
+    setLogs({});
+    setError("");
+    setPhaseSafe(
+      plan.status === "done" || plan.status === "error"
+        ? plan.status
+        : plan.status === "running"
+          ? "done" // a reload mid-run: treat as finished snapshot
+          : "idle",
+    );
+    hydrating.current = false;
+  };
+
+  const updateActive = useCallback(
+    (patch: Partial<Plan> | ((p: Plan) => Partial<Plan>)) => {
+      setPlans((cur) => {
+        const next = cur.map((p) =>
+          p.id === activeId
+            ? {
+                ...p,
+                ...(typeof patch === "function" ? patch(p) : patch),
+                updatedAt: Date.now(),
+              }
+            : p,
+        );
+        persistPlans(next);
+        return next;
+      });
+    },
+    [activeId],
+  );
 
   const upsertAgent = useCallback((agent: AgentStatus) => {
     setAgents((cur) => {
@@ -38,97 +99,137 @@ export default function Home() {
     }));
   }, []);
 
-  const run = useCallback(async (config: TripConfig) => {
-    cfgRef.current = config;
-    setCfg(config);
-    setAgents([]);
-    setLogs({});
-    setResults([]);
-    setReport("");
-    setError("");
-    setPhase("connecting");
+  const switchPlan = (plan: Plan) => {
+    if (running) return;
+    setActiveId(plan.id);
+    hydrate(plan);
+  };
 
-    try {
-      const res = await fetch("/api/research", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `Request failed (${res.status})`);
+  const newTrip = () => {
+    if (running) return;
+    const plan = createPlan(plans.length > 0 ? `Trip ${plans.length + 1}` : undefined);
+    setPlans((cur) => {
+      const next = [plan, ...cur];
+      persistPlans(next);
+      return next;
+    });
+    setActiveId(plan.id);
+    hydrate(plan);
+  };
+
+  const deletePlan = (id: string) => {
+    if (running && id === activeId) return;
+    setPlans((cur) => {
+      const next = cur.filter((p) => p.id !== id);
+      persistPlans(next);
+      return next;
+    });
+    if (id === activeId) {
+      const remaining = plans.filter((p) => p.id !== id);
+      const fallback = remaining[0] ?? createPlan();
+      if (remaining.length === 0) {
+        setPlans([fallback]);
+        persistPlans([fallback]);
       }
+      setActiveId(fallback.id);
+      hydrate(fallback);
+    }
+  };
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+  const run = useCallback(
+    async (config: TripConfig) => {
+      if (!activeId) return;
+      setError("");
+      setAgents([]);
+      setLogs({});
+      resultsRef.current = [];
+      setPhaseSafe("connecting");
+      updateActive({ status: "running", config, results: [], report: "" });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
-        for (const part of parts) {
-          const line = part.trim();
-          if (!line.startsWith("data:")) continue;
-          let event: StreamEvent;
-          try {
-            event = JSON.parse(line.slice(5).trim()) as StreamEvent;
-          } catch {
-            continue;
-          }
-          switch (event.type) {
-            case "phase":
-              setPhase(event.phase);
-              break;
-            case "agent":
-              upsertAgent(event.agent);
-              break;
-            case "log":
-              pushLog(event.agentId, event.line);
-              break;
-            case "destination":
-              setResults((cur) => {
-                const idx = cur.findIndex(
-                  (r) => r.destination === event.result.destination,
-                );
-                if (idx === -1) return [...cur, event.result];
-                const next = [...cur];
-                next[idx] = event.result;
-                return next;
-              });
-              break;
-            case "report":
-              setReport((cur) => (event.markdown.length > cur.length ? event.markdown : cur));
-              break;
-            case "error":
-              setError(event.message);
-              break;
-            case "done":
-              setPhase((p) => (p === "done" ? p : "done"));
-              break;
+      try {
+        const res = await fetch("/api/research", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(config),
+        });
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? `Request failed (${res.status})`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data:")) continue;
+            let event: StreamEvent;
+            try {
+              event = JSON.parse(line.slice(5).trim()) as StreamEvent;
+            } catch {
+              continue;
+            }
+            switch (event.type) {
+              case "phase":
+                setPhaseSafe(event.phase);
+                break;
+              case "agent":
+                upsertAgent(event.agent);
+                break;
+              case "log":
+                pushLog(event.agentId, event.line);
+                break;
+              case "destination":
+                resultsRef.current = [
+                  ...resultsRef.current.filter(
+                    (r) => r.destination !== event.result.destination,
+                  ),
+                  event.result,
+                ];
+                updateActive({ results: resultsRef.current });
+                break;
+              case "report":
+                updateActive((p) => ({ report: p.report + event.markdown }));
+                break;
+              case "error":
+                setError(event.message);
+                updateActive({ status: "error" });
+                break;
+              case "done": {
+                const final = phaseRef.current === "error" ? "error" : "done";
+                setPhaseSafe(final);
+                updateActive({ status: final });
+                break;
+              }
+            }
           }
         }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setPhaseSafe("error");
+        updateActive({ status: "error" });
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setPhase("error");
-    }
-  }, [pushLog, upsertAgent]);
-
-  const running = phase !== "idle" && phase !== "done" && phase !== "error";
+    },
+    [activeId, pushLog, updateActive, upsertAgent],
+  );
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
       {/* header */}
-      <header className="animate-fade-up mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="animate-fade-up mb-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Stay<span className="text-accent-soft">Scout</span>
           </h1>
           <p className="mt-1.5 text-sm text-slate-400 sm:text-base">
-            Multi-agent workation stay research — scout → verify → cost-sort, for any destinations.
+            Multi-agent workation stay research — any destinations, anywhere on earth.
           </p>
         </div>
         <div className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 font-mono text-xs text-accent-glow">
@@ -136,7 +237,53 @@ export default function Home() {
         </div>
       </header>
 
-      <ConfigForm onRun={run} running={running} />
+      {/* trip bar */}
+      <div className="animate-fade-up mb-5 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          Trips
+        </span>
+        {plans.map((p) => (
+          <span
+            key={p.id}
+            className={`group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+              p.id === activeId
+                ? "border-accent bg-accent/20 text-white"
+                : "border-white/10 bg-white/5 text-slate-300 hover:border-white/25"
+            }`}
+          >
+            <button onClick={() => switchPlan(p)} className="max-w-[220px] truncate">
+              {p.name}
+              {p.status === "done" && <span className="ml-1 text-mint">✓</span>}
+              {p.status === "running" && <span className="ml-1 text-accent-glow">●</span>}
+            </button>
+            <button
+              onClick={() => deletePlan(p.id)}
+              title="Delete trip"
+              className="text-slate-500 opacity-0 transition hover:text-rosex group-hover:opacity-100"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <button
+          onClick={newTrip}
+          disabled={running}
+          className="chip !border-accent/50 text-accent-glow disabled:opacity-40"
+        >
+          ＋ New trip
+        </button>
+      </div>
+
+      {active && (
+        <ConfigForm
+          key={active.id}
+          initial={active.config}
+          initialName={active.name}
+          onNameChange={(name) => updateActive({ name: name.trim() || active.name })}
+          onRun={run}
+          running={!!running}
+        />
+      )}
 
       {error && (
         <div className="mt-5 rounded-xl border border-rosex/40 bg-rosex/10 p-4 text-sm text-rosex">
@@ -150,9 +297,9 @@ export default function Home() {
         </div>
       )}
 
-      {results.length > 0 && (
+      {active && active.results.length > 0 && (
         <div className="mt-5">
-          <ResultsDashboard results={results} report={report} cfg={cfg} />
+          <ResultsDashboard results={active.results} report={active.report} cfg={active.config} />
         </div>
       )}
 
