@@ -49,7 +49,7 @@ function DestinationPanel({
   return (
     <div className="animate-fade-up space-y-4">
       {/* verdict */}
-      <div className="rounded-2xl border border-accent/25 bg-accent/8 p-5">
+      <div className="rounded-2xl border border-accent/25 bg-accent/10 p-5">
         <p className="text-sm text-slate-300">
           <span className="font-semibold text-white">{result.destination}</span>
           {result.tagline && <span className="text-slate-400"> — {result.tagline}</span>}
@@ -76,7 +76,7 @@ function DestinationPanel({
       </div>
 
       {/* stays table */}
-      <div className="overflow-x-auto rounded-2xl border border-white/8">
+      <div className="overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase tracking-wider text-slate-400">
             <tr>
@@ -169,7 +169,7 @@ function DestinationPanel({
       {/* connectivity + dropped */}
       {result.connectivityNotes.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
             <p className="label">On the ground</p>
             <ul className="space-y-1.5 text-xs leading-relaxed text-slate-400">
               {result.connectivityNotes.map((n, i) => (
@@ -178,7 +178,7 @@ function DestinationPanel({
             </ul>
           </div>
           {result.dropped.length > 0 && (
-            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
               <p className="label">Dropped during research</p>
               <ul className="space-y-1.5 text-xs leading-relaxed text-slate-400">
                 {result.dropped.map((n, i) => (
@@ -298,7 +298,7 @@ export default function ResultsDashboard({
               </button>
             </div>
           </div>
-          <pre className="mt-4 max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-xl border border-white/8 bg-ink-950/80 p-5 font-mono text-xs leading-relaxed text-slate-300">
+          <pre className="mt-4 max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-ink-950/80 p-5 font-mono text-xs leading-relaxed text-slate-300">
             {report}
           </pre>
         </div>

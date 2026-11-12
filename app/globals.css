@@ -14,7 +14,7 @@
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-white/8 bg-ink-900/80 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_20px_50px_-30px_rgba(0,0,0,0.8)] backdrop-blur;
+    @apply rounded-2xl border border-white/10 bg-ink-900/80 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_20px_50px_-30px_rgba(0,0,0,0.8)] backdrop-blur;
   }
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40;
