@@ -46,6 +46,12 @@ Any OpenAI-compatible endpoint works — point `GLM_BASE_URL` at it and set your
 4. Open each destination's **Verify live** links to confirm against real listings
 5. Copy or download the final markdown report
 
+## 🔧 Troubleshooting
+
+- **Blank page / asset 500s while `npm run dev` is running** — a `next build` ran against the same `.next` directory the dev server was serving from, corrupting dev artifacts. Stop the dev server, then `npm run dev:clean` (wipes `.next` and restarts). Avoid running `build` while dev is serving.
+- **Port 3000 already in use** — `lsof -ti:3000 | xargs kill -9`, then `npm run dev`.
+- **GLM 429 "insufficient balance"** — your key is bound to a specific Z.ai endpoint (e.g. the coding-plan endpoint `https://api.z.ai/api/coding/paas/v4`). Point `GLM_BASE_URL` at the endpoint your key was issued for.
+
 ## 🧱 Stack
 
 Next.js 14 (App Router) · Tailwind CSS · SSE streaming · GLM (`glm-5.3-flash`) via the OpenAI-compatible API — no other runtime dependencies.
