@@ -29,31 +29,46 @@ export async function glmChat(
   messages: GlmMessage[],
   opts: ChatOpts = {},
 ): Promise<string> {
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.GLM_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      temperature: opts.temperature ?? 0.4,
-      max_tokens: opts.maxTokens ?? 4000,
-      ...(opts.json ? { response_format: { type: "json_object" } } : {}),
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`GLM API ${res.status}: ${text.slice(0, 400)}`);
-  }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+  const baseBody = {
+    model: MODEL,
+    messages,
+    temperature: opts.temperature ?? 0.4,
+    max_tokens: opts.maxTokens ?? 4000,
+    ...(opts.json ? { response_format: { type: "json_object" } } : {}),
   };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("GLM returned an empty completion");
-  return content;
+
+  // Attempt 1: reasoning disabled (glm-5.x spends budget in reasoning_content
+  // and can return empty content otherwise). Attempt 2: plain body, in case
+  // the endpoint rejects the `thinking` field.
+  for (const attempt of [0, 1]) {
+    const body =
+      attempt === 0 ? { ...baseBody, thinking: { type: "disabled" } } : baseBody;
+    const res = await fetch(`${BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.GLM_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      if (attempt === 0) continue; // maybe the thinking field — retry plain
+      throw new Error(`GLM API ${res.status}: ${text.slice(0, 400)}`);
+    }
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string; reasoning_content?: string } }[];
+    };
+    const msg = data.choices?.[0]?.message;
+    const content = msg?.content || msg?.reasoning_content || "";
+    if (!content) {
+      if (attempt === 0) continue;
+      throw new Error("GLM returned an empty completion");
+    }
+    return content;
+  }
+  throw new Error("GLM call failed after retries"); // unreachable
 }
 
 /** Extract the first JSON object/array embedded in a model response. */
