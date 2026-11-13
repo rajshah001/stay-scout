@@ -102,14 +102,14 @@ async function mojeek(query: string): Promise<DiscoverResult[]> {
 async function overpass(lat: number, lng: number): Promise<DiscoverResult[]> {
   const d = 0.12; // ≈ ±13 km box
   const bbox = `${lat - d},${lng - d},${lat + d},${lng + d}`;
-  const q = `[out:json][timeout:25];(node(${bbox})[tourism~"guest_house|homestay|hostel|apartment"];way(${bbox})[tourism~"guest_house|homestay|apartment"];);out center 15;`;
+  const q = `[out:json][timeout:10];(node(${bbox})[tourism~"guest_house|homestay|hostel|apartment"];way(${bbox})[tourism~"guest_house|homestay|apartment"];);out center 15;`;
   for (const mirror of OVERPASS_MIRRORS) {
     try {
       const res = await fetch(mirror, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA },
         body: new URLSearchParams({ data: q }),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(12_000),
       });
       if (!res.ok) continue;
       const data = (await res.json()) as {

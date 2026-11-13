@@ -126,7 +126,7 @@ function StaysPanel({
           disabled={discovering}
           className="btn-ghost mt-2.5 !border-mint/40 text-xs text-mint disabled:opacity-40"
         >
-          {discovering ? "Scanning DuckDuckGo + OpenStreetMap…" : "▶ Auto-discover (free · no API key)"}
+          {discovering ? "Scanning free engines (SearXNG/DDG/OSM)…" : "▶ Auto-discover (free · no API key)"}
         </button>
         {discoverNote && <p className="mt-2 text-[10px] text-slate-500">{discoverNote}</p>}
         {leads.length > 0 && (
