@@ -17,9 +17,6 @@ export async function POST(req: Request) {
     if (!Array.isArray(config.destinations) || config.destinations.length === 0) {
       throw new Error("At least one destination is required");
     }
-    if (config.destinations.length > 8) {
-      throw new Error("Up to 8 destinations per run");
-    }
   } catch (err) {
     return Response.json(
       { error: `Invalid config: ${err instanceof Error ? err.message : String(err)}` },

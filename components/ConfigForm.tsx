@@ -112,9 +112,51 @@ export default function ConfigForm({
           placeholder="…anywhere on earth, semicolon-separated:  Lisbon ; Ericeira ; Tarifa ; Pokhara"
           className="field mt-3 resize-none font-mono text-xs"
         />
-        <p className="mt-1.5 text-xs text-slate-500">
-          {destinations.length} destination{destinations.length === 1 ? "" : "s"} · max 8 per run
-        </p>
+        {destinations.length > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between">
+              <span className="label !mb-0">
+                Selected · {destinations.length} destination{destinations.length === 1 ? "" : "s"} (scouts run in parallel)
+              </span>
+              <button
+                onClick={() => {
+                  setPicked([]);
+                  setDestText("");
+                }}
+                className="text-xs text-slate-500 transition hover:text-rosex"
+              >
+                clear all
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {destinations.map((d) => (
+                <span
+                  key={d}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/15 py-1 pl-3 pr-1.5 text-xs font-medium text-white"
+                >
+                  {d}
+                  <button
+                    onClick={() =>
+                      picked.includes(d)
+                        ? setPicked((cur) => cur.filter((x) => x !== d))
+                        : setDestText(
+                            destText
+                              .split(/[;\n]/)
+                              .map((x) => x.trim())
+                              .filter((x) => x && x !== d)
+                              .join("; "),
+                          )
+                    }
+                    title="Remove"
+                    className="rounded-full px-1 text-slate-400 transition hover:bg-white/10 hover:text-rosex"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* dates + guests */}
