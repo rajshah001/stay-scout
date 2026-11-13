@@ -18,7 +18,7 @@ const UA = "StayScout/1.0 (workation stay research; polite crawler)";
 interface DiscoverResult {
   title: string;
   url: string;
-  source: "searxng" | "ddg-lite" | "overpass";
+  source: "searxng" | "ddg-lite" | "mojeek" | "overpass";
   extra?: string;
 }
 
