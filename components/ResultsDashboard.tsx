@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import BudgetCalculator from "@/components/BudgetCalculator";
-import StayCard from "@/components/StayCard";
+import StayCard, { isAreaLead } from "@/components/StayCard";
 
 interface LiveListing {
   roomId: string;
@@ -328,15 +328,14 @@ function StaysPanel({
           {result.stays.length} options · sorted low → high · click a card for full evidence
         </p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {result.stays.map((s, i) => (
-            <StayCard
-              key={`${s.name}-${i}`}
-              stay={s}
-              cfg={cfg}
-              seed={i}
-              onOpen={() => onOpenStay(s)}
-            />
-          ))}
+          {[...result.stays]
+            .map((s, i) => ({ s, i, area: isAreaLead(s) }))
+            .sort((a, b) => Number(a.area) - Number(b.area) || (a.s.priceLow ?? Infinity) - (b.s.priceLow ?? Infinity))
+            .map(({ s, i, area }) => (
+              <div key={`${s.name}-${i}`} className={area ? "opacity-90" : ""}>
+                <StayCard stay={s} cfg={cfg} seed={i} onOpen={() => onOpenStay(s)} />
+              </div>
+            ))}
         </div>
         {result.stays.length === 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">

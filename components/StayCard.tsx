@@ -18,6 +18,13 @@ const GRADIENTS = [
   "from-sky-500/60 via-cyan-400/40 to-emerald-300/30",
 ];
 
+export function isAreaLead(stay: StayCandidate): boolean {
+  return (
+    /\/s\/|searchresults/.test(stay.url) ||
+    stay.flags.some((f) => /category candidate|area lead/i.test(f))
+  );
+}
+
 export default function StayCard({
   stay,
   cfg,
@@ -31,6 +38,7 @@ export default function StayCard({
 }) {
   const gradient = GRADIENTS[seed % GRADIENTS.length];
   const hasRange = stay.priceLow != null && stay.priceHigh != null && stay.priceHigh > stay.priceLow;
+  const areaLead = isAreaLead(stay);
 
   return (
     <button
@@ -45,8 +53,12 @@ export default function StayCard({
             Guest favourite
           </span>
         )}
-        <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur">
-          {stay.type}
+        <span
+          className={`absolute right-3 top-3 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide backdrop-blur ${
+            areaLead ? "bg-amberx text-slate-900" : "bg-black/55 text-white"
+          }`}
+        >
+          {areaLead ? "🔍 Area lead" : stay.type}
         </span>
         {stay.locationArea && (
           <span className="absolute bottom-2.5 left-3 max-w-[85%] truncate text-[11px] font-medium text-white/90">
@@ -57,6 +69,12 @@ export default function StayCard({
 
       {/* body */}
       <div className="space-y-2 p-4">
+        {areaLead && (
+          <p className="rounded-lg bg-amberx/10 px-2.5 py-1.5 text-[11px] leading-snug text-amberx">
+            Area-level lead — a class of stays to check, not one exact listing. The link opens a
+            prefilled search; pick the real unit there.
+          </p>
+        )}
         <div className="flex items-start justify-between gap-2">
           <h3 className="line-clamp-2 min-h-[2.4rem] text-sm font-semibold leading-snug text-white">
             {stay.name}
@@ -98,8 +116,14 @@ export default function StayCard({
               28 nights · {cfg?.adults ?? 4} adults{hasRange ? " est." : ""}
             </p>
           </div>
-          <span className="rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition group-hover:border-accent group-hover:bg-accent group-hover:text-white">
-            Details
+          <span
+            className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition group-hover:bg-accent group-hover:text-white ${
+              areaLead
+                ? "border-amberx/60 text-amberx group-hover:border-amberx group-hover:text-slate-900"
+                : "border-white/15 text-white"
+            }`}
+          >
+            {areaLead ? "How to book ↗" : "Details"}
           </span>
         </div>
       </div>

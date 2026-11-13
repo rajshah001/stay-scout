@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { StayCandidate, TripConfig } from "@/lib/types";
-import { airbnbRoomUrl } from "@/lib/deeplinks";
+import { airbnbRoomUrl, airbnbSearchUrl, bookingSearchUrl } from "@/lib/deeplinks";
 
 export default function StayDrawer({
   stay,
@@ -60,10 +60,25 @@ export default function StayDrawer({
 
   if (!stay || !mounted) return null;
 
-  const verifyUrl =
-    stay.platform === "Airbnb" && /airbnb\.(com|co\.in)\/rooms\//.test(stay.url) && cfg
-      ? airbnbRoomUrl(stay.url, cfg)
-      : stay.url;
+  const isSearchOnly = /\/s\/|searchresults/.test(stay.url) || stay.flags.some((f) => /category candidate|area lead/i.test(f));
+
+  // for area leads, the CTA becomes a properly prefilled search for that platform
+  let ctaUrl = stay.url;
+  let ctaLabel = "Open listing with our dates ↗";
+  if (isSearchOnly && cfg) {
+    if (/airbnb/i.test(stay.platform) || /airbnb/i.test(stay.url)) {
+      ctaUrl = airbnbSearchUrl(destination || "the area", cfg);
+      ctaLabel = "Open prefilled Airbnb search ↗";
+    } else if (/booking/i.test(stay.platform) || /booking/i.test(stay.url)) {
+      ctaUrl = bookingSearchUrl(destination.split(",")[0], cfg);
+      ctaLabel = "Open prefilled Booking search ↗";
+    } else {
+      ctaUrl = stay.url;
+      ctaLabel = "Open platform search ↗";
+    }
+  } else if (stay.platform === "Airbnb" && /airbnb\.(com|co\.in)\/rooms\//.test(stay.url) && cfg) {
+    ctaUrl = airbnbRoomUrl(stay.url, cfg);
+  }
 
   const copyMessage = async () => {
     try {
@@ -114,13 +129,25 @@ export default function StayDrawer({
         </div>
 
         <div className="space-y-5 p-6">
+          {/* area-lead explainer */}
+          {isSearchOnly && (
+            <div className="mb-4 rounded-2xl border border-amberx/40 bg-amberx/10 p-4">
+              <p className="text-sm leading-relaxed text-amberx">
+                🔍 <span className="font-semibold text-white">Area-level lead.</span> This card represents a
+                class of stays in this pocket (the exact units change often). The button below opens a
+                live search with your dates &amp; group — pick the real unit there, then run the
+                host-validation checklist.
+              </p>
+            </div>
+          )}
+
           {/* price + cta */}
           <div className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/15 to-accent/5 p-5">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">28-night estimate</p>
             <p className="mt-1 font-mono text-xl text-white">{stay.priceBand28n}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <a href={verifyUrl} target="_blank" rel="noreferrer" className="btn-primary !py-2 text-xs">
-                Open listing with our dates ↗
+              <a href={ctaUrl} target="_blank" rel="noreferrer" className="btn-primary !py-2 text-xs">
+                {ctaLabel}
               </a>
               {stay.sources.map((s) => (
                 <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="btn-ghost !py-2 text-xs">
