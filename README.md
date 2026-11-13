@@ -54,6 +54,19 @@ GLM_MODEL=glm-5.3-flash
 
 Any OpenAI-compatible endpoint works — point `GLM_BASE_URL` at it and set your `GLM_MODEL`.
 
+## 💎 The hidden-gem methodology
+
+A real user found **Eden's Homestay** in **Chongey Tar** (a Gangtok micro-locality) — an offbeat, Instagram-marketed property (`@edenshomestaysikkim`) our agents missed while researching Sikkim. The post-mortem identified four structural gaps, each now fixed:
+
+| Gap | Why we missed it | Fix |
+|---|---|---|
+| **Fame bias in planning** | The planner expanded "Sikkim" only into the 5 famous hubs — micro-localities like Chongey Tar never got a query | Planner now also returns **micro-locality pockets** (lesser-known villages/pockets) per destination, and scouts are required to cover them |
+| **Evidence-bar suppression** | Low review mass (1 Agoda review) reads as "risk" and gets filtered, never surfaced | Scouts must include a **hidden-gem tier**: 1–2 under-reviewed, single-platform properties, honestly flagged `"hidden gem lead — verify on platform/socials"` |
+| **No discovery channel** | Agents reason from training knowledge; Instagram-only properties are below the knowledge floor, and the no-fabrication rule (correctly) blocks inventing them | Every destination ships a **💎 Hidden-gem hunt kit**: one-click Instagram hunt, workation-Reddit threads, Google-Maps micro-search, travel-blog sweep, Indian-OTA and hostel-belt queries — the human runs the searches the agents can't |
+| **Airbnb-first inventory** | OTAs and Maps hold different long-tail stock | Discovery kit + Booking/Maps/Reddit links per destination cover the non-Airbnb long tail |
+
+The honest architecture note: StayScout agents don't browse the web (the GLM key's plan covers chat only). Discovery is therefore **human-in-the-loop by design** — the agents narrow and structure, the Discovery Kit and verify links put ground truth one click away.
+
 ## 🧭 Using it
 
 1. Name the trip, pick a quick-start set (South India, Kerala, Himalayas, global nomad hubs…) or type any destinations

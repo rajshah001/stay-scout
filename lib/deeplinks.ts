@@ -98,3 +98,62 @@ export function verifyLinksFor(place: string, cfg: TripConfig): VerifyLinks {
     google: googleSearchUrl(place),
   };
 }
+
+export interface HiddenGemLink {
+  label: string;
+  url: string;
+  why: string;
+}
+
+/**
+ * The "Discovery Kit" — the queries that surface under-reviewed, Instagram or
+ * word-of-mouth-marketed stays (the exact channel that finds hidden gems like
+ * an offbeat homestay marketed only via Instagram in a micro-locality).
+ */
+export function hiddenGemLinks(place: string): HiddenGemLink[] {
+  const base = place.split(",")[0].trim();
+  return [
+    {
+      label: "Instagram hunt",
+      url: `https://www.google.com/search?q=${encodeURIComponent(
+        `"${base}" homestay site:instagram.com`,
+      )}`,
+      why: "Offbeat homestays market via Instagram reels — often bookable only by DM",
+    },
+    {
+      label: "Workation Reddit threads",
+      url: `https://www.reddit.com/search/?q=${encodeURIComponent(
+        `"${base}" workation OR "month" homestay`,
+      )}&sort=new`,
+      why: "First-person month-long stay reports (r/WorkationIndia, r/SoloTravel_India)",
+    },
+    {
+      label: "Google Maps micro-search",
+      url: `https://www.google.com/maps/search/${encodeURIComponent(
+        `homestay near ${place}`,
+      )}`,
+      why: "Small homestays live on Maps with 20–150 reviews, absent from OTAs",
+    },
+    {
+      label: "Blog / deep-India hunt",
+      url: `https://www.google.com/search?q=${encodeURIComponent(
+        `${base} homestay offbeat -site:airbnb.com -site:booking.com (blog OR review OR "how to reach")`,
+      )}`,
+      why: "Travel blogs cover single-village properties OTAs never index",
+    },
+    {
+      label: "MakeMyTrip / Goibibo sweep",
+      url: `https://www.google.com/search?q=${encodeURIComponent(
+        `site:makemytrip.com OR site:goibibo.com ${base} homestay`,
+      )}`,
+      why: "Indian OTA inventory missed by Airbnb-first searches",
+    },
+    {
+      label: "Hostelworld / Zostel belt",
+      url: `https://www.google.com/search?q=${encodeURIComponent(
+        `${base} hostel OR zostel OR hosteller private room workation`,
+      )}`,
+      why: "Private rooms in hostels double as cheap work bases",
+    },
+  ];
+}

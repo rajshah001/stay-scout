@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import BudgetCalculator from "@/components/BudgetCalculator";
 import StayDrawer from "@/components/StayDrawer";
 import { useToast } from "@/components/Toast";
+import { hiddenGemLinks } from "@/lib/deeplinks";
 import type { DestinationResult, StayCandidate, TripConfig } from "@/lib/types";
 
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -77,6 +78,28 @@ function StaysPanel({
       <div>
         <p className="label">Verify live · exact filtered searches for your dates &amp; group · click a row for evidence</p>
         <VerifyRow result={result} />
+      </div>
+
+      <div className="rounded-2xl border border-mint/25 bg-mint/5 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-mint">
+          💎 Hidden-gem hunt · agents can't browse — these queries find the Instagram-only,
+          single-village stays mainstream lists miss
+        </p>
+        <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {hiddenGemLinks(result.destination).map((l) => (
+            <a
+              key={l.label}
+              href={l.url}
+              target="_blank"
+              rel="noreferrer"
+              title={l.why}
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 transition hover:border-mint/50 hover:text-white"
+            >
+              <span className="font-semibold text-white">{l.label}</span>
+              <span className="mt-0.5 block text-[10px] leading-snug text-slate-500">{l.why}</span>
+            </a>
+          ))}
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-white/10">
