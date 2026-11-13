@@ -1,10 +1,14 @@
 # 🏔️ StayScout
 
-**Multi-agent workation stay research — scout → verify → cost-sort, for any destinations.**
+**Multi-agent workation stay research — scout → verify → cost-sort, for any destinations on earth.**
 
-StayScout operationalises the workflow of a serious month-long-stay hunt: enter your destinations, dates and work requirements, and a team of GLM agents researches every place in parallel — planner, destination scouts, a skeptical verifier, and a report composer — then hands you a decisive, cost-sorted shortlist where **every AI claim is one click away from ground truth** (pre-filtered Airbnb searches with your dates, guests and WiFi filters; Booking; Google Maps reviews; Reddit intel).
+StayScout operationalises the workflow of a serious month-long-stay hunt: enter your destinations, dates and work requirements, and a team of GLM agents researches every place in parallel — planner, destination scouts, a skeptical verifier, and a report composer — then hands you a decisive, cost-sorted shortlist where **every AI claim is one click away from ground truth**.
 
-## ✨ What it does
+<div align="center">
+  <img src="docs/screenshots/map.png" alt="StayScout map view with destination price pins" width="800" />
+</div>
+
+## ✨ The agent team
 
 ```
 ┌─────────┐   ┌─────────────────────────┐   ┌───────────┐   ┌──────────┐
@@ -14,11 +18,21 @@ StayScout operationalises the workflow of a serious month-long-stay hunt: enter 
       live SSE progress → results dashboard → markdown report export
 ```
 
-- **Planner** — normalises destinations, flags season/peak risks for your window
-- **Scouts** — one agent per destination; returns 4–6 real, cross-checkable candidates covering entire homes *and* cheaper room-pairs, with honest `est.` pricing for 28+ nights (Airbnb monthly discounts), wifi evidence or explicit "confirm with host", workspace, power backup, evening access, and 2+ sources each
-- **Verifier** — audits every shortlist against your hard filters; flags nightly-rate traps, thin sources, missing evidence
-- **Composer** — final markdown report: *Answer First* ranking → one cost-sorted table per place → booking playbook with the host-validation message → cost snapshot
-- **Human verification built in** — per destination, one-click deep links recreate the exact filtered searches (Airbnb with WiFi + dates + guests + monthly pricing, Booking, Google Maps, Reddit) — the agents grind, you verify
+- **Planner** — normalises destinations (with map coordinates), flags season & peak-surge risks for your exact window
+- **Scouts** — one agent per destination; returns 4–6 real, cross-checkable candidates covering entire homes *and* cheaper room-pairs, with honest `est.` pricing for 28+ nights (Airbnb monthly discounts), wifi evidence or explicit "confirm with host", workspace, power backup, evening access, and 2+ sources each — never fabricating what it can't back
+- **Verifier** — audits every shortlist against your hard filters; nightly-rate traps, thin sources and missing evidence get flagged
+- **Composer** — final markdown report: *Answer First* ranking → one cost-sorted table per place → booking playbook → cost snapshot
+
+## 🎛️ The workspace
+
+| | |
+|---|---|
+| 🏘️ **Stays** | Cost-sorted table per destination; click any row for a full **evidence drawer** — sources, dated listing link, flags, and a ready-to-send host-validation message |
+| 🗺️ **Map** | Destination pins with live from-prices (OpenStreetMap + Leaflet, no API key) |
+| 💰 **Budget** | Month-cost calculator: rent tier, editable scooter/food/kit/coworking assumptions, per-person math, ranked bars |
+| 📄 **Report** | Rendered markdown report with copy/download |
+
+Plus: named multi-trip history (localStorage), multi-region quick-start sets, one-click **pre-filtered Airbnb searches** per destination (your dates, guests, WiFi amenity, monthly pricing), Booking/Maps/Reddit cross-check links, toasts, and an error boundary.
 
 ## 🚀 Quick start
 
@@ -28,11 +42,13 @@ cp .env.example .env.local   # add your GLM API key
 npm run dev                  # http://localhost:3000
 ```
 
+**No key yet?** Click **"▶ See a verified example trip"** on the landing page — a real, human-verified South India research run (42 stays with live links) ships as the built-in demo.
+
 ### Configuration (`.env.local`)
 
 ```bash
 GLM_API_KEY=your_glm_api_key_here
-GLM_BASE_URL=https://api.z.ai/api/paas/v4   # Z.ai OpenAI-compatible endpoint
+GLM_BASE_URL=https://api.z.ai/api/coding/paas/v4   # the endpoint your key was issued for
 GLM_MODEL=glm-5.3-flash
 ```
 
@@ -40,26 +56,30 @@ Any OpenAI-compatible endpoint works — point `GLM_BASE_URL` at it and set your
 
 ## 🧭 Using it
 
-1. Pick or type up to 8 destinations (villages, towns, "Lisbon; Madeira" — anything)
-2. Set dates, number of working adults, seating preference (entire home vs. room-pairs), hard filters (video-call WiFi, dedicated workspace, Guest-favourite only), budget
+1. Name the trip, pick a quick-start set (South India, Kerala, Himalayas, global nomad hubs…) or type any destinations
+2. Set dates, working adults, seating preference (entire home vs. room-pairs), hard filters (video-call WiFi, dedicated workspace, Guest-favourite only), budget
 3. Watch the agent team run live — each scout streams its shortlist as it lands
-4. Open each destination's **Verify live** links to confirm against real listings
+4. Open each destination's **Verify live** links; click stays for evidence; check the map and budget tabs
 5. Copy or download the final markdown report
 
-## 🔧 Troubleshooting
+## 📸 Screenshots
 
-- **Blank page / asset 500s while `npm run dev` is running** — a `next build` ran against the same `.next` directory the dev server was serving from, corrupting dev artifacts. Stop the dev server, then `npm run dev:clean` (wipes `.next` and restarts). Avoid running `build` while dev is serving.
-- **Port 3000 already in use** — `lsof -ti:3000 | xargs kill -9`, then `npm run dev`.
-- **GLM 429 "insufficient balance"** — your key is bound to a specific Z.ai endpoint (e.g. the coding-plan endpoint `https://api.z.ai/api/coding/paas/v4`). Point `GLM_BASE_URL` at the endpoint your key was issued for.
+| Landing | Budget calculator |
+|---|---|
+| ![landing](docs/screenshots/landing.png) | ![budget](docs/screenshots/budget.png) |
+| **Stay evidence drawer** | **Destination ranking** |
+| ![drawer](docs/screenshots/stay-drawer.png) | ![map](docs/screenshots/map.png) |
 
 ## 🧱 Stack
 
-Next.js 14 (App Router) · Tailwind CSS · SSE streaming · GLM (`glm-5.3-flash`) via the OpenAI-compatible API — no other runtime dependencies.
+Next.js 14 (App Router) · Tailwind CSS · SSE streaming · Leaflet + OpenStreetMap · react-markdown · GLM (`glm-5.3-flash`) via the OpenAI-compatible API. CI: typecheck + build on every push.
 
-## 🔒 Notes
+## 🔒 Notes & troubleshooting
 
-- Your API key lives in `.env.local` (gitignored) and is only used server-side in the `/api/research` route.
-- Agent shortlists are AI-knowledge-driven candidates with source links — the product's design assumption is the same one a good human researcher follows: *never book without opening the listing and asking the host the validation question (the playbook template is in every report).*
+- Your API key lives in `.env.local` (gitignored) and is only used server-side in `/api/research`.
+- Agent shortlists are AI-knowledge candidates with source links — the product's design assumption is the same one a good human researcher follows: *never book without opening the listing and sending the validation message (pre-written in every stay drawer).*
+- **Blank page / asset 500s while dev is running** — a `next build` corrupted the dev `.next`; stop dev, run `npm run dev:clean`.
+- **GLM 429 "insufficient balance"** — your key is bound to a specific endpoint (e.g. the coding-plan URL above); point `GLM_BASE_URL` there.
 
 ## 📄 License
 
