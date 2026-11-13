@@ -68,6 +68,9 @@ function StaysPanel({
   const [discovering, setDiscovering] = useState(false);
   const [leads, setLeads] = useState<DiscoverLead[]>([]);
   const [discoverNote, setDiscoverNote] = useState("");
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [intelOpen, setIntelOpen] = useState(false);
+  const [verdictOpen, setVerdictOpen] = useState(false);
 
   const runDiscovery = async () => {
     setDiscovering(true);
@@ -94,96 +97,128 @@ function StaysPanel({
 
   return (
     <div className="animate-fade-up space-y-4">
-      <div className="rounded-2xl border border-accent/25 bg-accent/10 p-5">
-        <p className="text-sm text-slate-300">
-          <span className="font-semibold text-white">{result.destination}</span>
-          {result.tagline && <span className="text-slate-400"> — {result.tagline}</span>}
-        </p>
-        {result.bestValue && (
-          <p className="mt-2 text-sm text-mint">
-            🏆 <span className="font-medium text-white">Best value:</span> {result.bestValue}
-          </p>
-        )}
-        {result.cheapestDecent && (
-          <p className="mt-1 text-sm text-amberx">
-            💰 <span className="font-medium text-white">Cheapest decent:</span> {result.cheapestDecent}
-          </p>
-        )}
-        {result.error && <p className="mt-2 text-sm text-rosex">Scout error: {result.error}</p>}
-      </div>
-
-      <div>
-        <p className="label">Verify live · exact filtered searches for your dates &amp; group · click a row for evidence</p>
-        <VerifyRow result={result} />
-      </div>
-
-      <div className="rounded-2xl border border-mint/25 bg-mint/5 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-mint">
-          💎 Hidden-gem hunt · agents can't browse — these queries find the Instagram-only,
-          single-village stays mainstream lists miss
-        </p>
-        <button
-          onClick={runDiscovery}
-          disabled={discovering}
-          className="btn-ghost mt-2.5 !border-mint/40 text-xs text-mint disabled:opacity-40"
-        >
-          {discovering ? "Scanning free engines (SearXNG/DDG/OSM)…" : "▶ Auto-discover (free · no API key)"}
-        </button>
-        {discoverNote && <p className="mt-2 text-[10px] text-slate-500">{discoverNote}</p>}
-        {leads.length > 0 && (
-          <div className="mt-3 space-y-1.5">
-            {leads.map((l) => (
-              <div
-                key={l.url}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"
-              >
-                <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
-                  {l.source}
-                </span>
-                <a
-                  href={l.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="min-w-0 flex-1 truncate text-xs text-accent-glow hover:underline"
-                  title={l.url}
-                >
-                  {l.title}
-                </a>
-                {l.extra && <span className="hidden truncate text-[10px] text-slate-500 lg:block">{l.extra}</span>}
-                <button
-                  onClick={() => onAddLead(result.destination, l)}
-                  title="Add as hidden gem lead to this trip"
-                  className="shrink-0 rounded-lg border border-mint/40 px-2 py-1 text-[10px] font-semibold text-mint transition hover:bg-mint/10"
-                >
-                  + lead
-                </button>
-              </div>
-            ))}
+      {/* verdict — compact, expandable */}
+      <div className="rounded-2xl border border-accent/25 bg-accent/10 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm text-slate-300">
+              <span className="font-semibold text-white">{result.destination.split(",")[0]}</span>
+              {result.tagline && <span className="text-slate-400"> — {result.tagline}</span>}
+            </p>
+            {result.bestValue && (
+              <p className="mt-1.5 truncate text-sm text-mint">
+                🏆 <span className="font-medium text-white">Best:</span> {result.bestValue}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setVerdictOpen((o) => !o)}
+            className="shrink-0 rounded-lg border border-white/15 px-2.5 py-1 text-[11px] text-slate-300 transition hover:border-white/30 hover:text-white"
+          >
+            {verdictOpen ? "▴ less" : "▾ detail"}
+          </button>
+        </div>
+        {verdictOpen && (
+          <div className="mt-2 space-y-1 border-t border-white/10 pt-2">
+            {result.cheapestDecent && (
+              <p className="text-sm text-amberx">
+                💰 <span className="font-medium text-white">Cheapest decent:</span> {result.cheapestDecent}
+              </p>
+            )}
+            {result.error && <p className="text-sm text-rosex">Scout error: {result.error}</p>}
           </div>
         )}
-        <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {hiddenGemLinks(result.destination).map((l) => (
-            <a
-              key={l.label}
-              href={l.url}
-              target="_blank"
-              rel="noreferrer"
-              title={l.why}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 transition hover:border-mint/50 hover:text-white"
-            >
-              <span className="font-semibold text-white">{l.label}</span>
-              <span className="mt-0.5 block text-[10px] leading-snug text-slate-500">{l.why}</span>
-            </a>
-          ))}
-        </div>
       </div>
 
+      {/* tools — one collapsed section containing verify + hunt */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03]">
+        <button
+          onClick={() => setToolsOpen((o) => !o)}
+          className="flex w-full items-center justify-between px-4 py-3 text-left"
+        >
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            🧰 Verify live &amp; hidden-gem tools
+          </span>
+          <span className="text-xs text-slate-500">{toolsOpen ? "▴ hide" : "▾ show"}</span>
+        </button>
+        {toolsOpen && (
+          <div className="space-y-4 border-t border-white/5 px-4 pb-4 pt-3">
+            <div>
+              <p className="label">Verify live · exact filtered searches for your dates &amp; group</p>
+              <VerifyRow result={result} />
+            </div>
+            <div className="rounded-xl border border-mint/25 bg-mint/5 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-mint">
+                  💎 Hidden-gem hunt — for the Instagram-only, single-village stays lists miss
+                </p>
+                <button
+                  onClick={runDiscovery}
+                  disabled={discovering}
+                  className="btn-ghost !border-mint/40 !py-1 text-xs text-mint disabled:opacity-40"
+                >
+                  {discovering ? "Scanning free engines…" : "▶ Auto-discover"}
+                </button>
+              </div>
+              {discoverNote && <p className="mt-2 text-[10px] text-slate-500">{discoverNote}</p>}
+              {leads.length > 0 && (
+                <div className="mt-2.5 space-y-1.5">
+                  {leads.map((l) => (
+                    <div
+                      key={l.url}
+                      className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                    >
+                      <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
+                        {l.source}
+                      </span>
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-w-0 flex-1 truncate text-xs text-accent-glow hover:underline"
+                        title={l.url}
+                      >
+                        {l.title}
+                      </a>
+                      {l.extra && (
+                        <span className="hidden truncate text-[10px] text-slate-500 lg:block">{l.extra}</span>
+                      )}
+                      <button
+                        onClick={() => onAddLead(result.destination, l)}
+                        title="Add as hidden gem lead to this trip"
+                        className="shrink-0 rounded-lg border border-mint/40 px-2 py-1 text-[10px] font-semibold text-mint transition hover:bg-mint/10"
+                      >
+                        + lead
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {hiddenGemLinks(result.destination).map((l) => (
+                  <a
+                    key={l.label}
+                    href={l.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={l.why}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 transition hover:border-mint/50 hover:text-white"
+                  >
+                    <span className="font-semibold text-white">{l.label}</span>
+                    <span className="mt-0.5 block text-[10px] leading-snug text-slate-500">{l.why}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* stays — the hero content */}
       <div>
-        <div className="mb-3 flex items-center justify-between px-1">
-          <p className="text-xs text-slate-500">
-            {result.stays.length} options · sorted low → high · click a card for full evidence
-          </p>
-        </div>
+        <p className="mb-3 px-1 text-xs text-slate-500">
+          {result.stays.length} options · sorted low → high · click a card for full evidence
+        </p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {result.stays.map((s, i) => (
             <StayCard
@@ -202,24 +237,40 @@ function StaysPanel({
         )}
       </div>
 
-      {result.connectivityNotes.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="label">On the ground</p>
-            <ul className="space-y-1.5 text-xs leading-relaxed text-slate-400">
-              {result.connectivityNotes.map((n, i) => (
-                <li key={i}>• {n}</li>
-              ))}
-            </ul>
-          </div>
-          {result.dropped.length > 0 && (
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="label">Dropped during research</p>
-              <ul className="space-y-1.5 text-xs leading-relaxed text-slate-400">
-                {result.dropped.map((n, i) => (
-                  <li key={i}>✗ {n}</li>
-                ))}
-              </ul>
+      {/* local intel — collapsed */}
+      {(result.connectivityNotes.length > 0 || result.dropped.length > 0) && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03]">
+          <button
+            onClick={() => setIntelOpen((o) => !o)}
+            className="flex w-full items-center justify-between px-4 py-3 text-left"
+          >
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              📍 Local intel{result.dropped.length > 0 ? ` & dropped (${result.dropped.length})` : ""}
+            </span>
+            <span className="text-xs text-slate-500">{intelOpen ? "▴ hide" : "▾ show"}</span>
+          </button>
+          {intelOpen && (
+            <div className="grid gap-3 border-t border-white/5 p-4 sm:grid-cols-2">
+              {result.connectivityNotes.length > 0 && (
+                <div>
+                  <p className="label">On the ground</p>
+                  <ul className="space-y-1.5 text-xs leading-relaxed text-slate-400">
+                    {result.connectivityNotes.map((n, i) => (
+                      <li key={i}>• {n}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {result.dropped.length > 0 && (
+                <div>
+                  <p className="label">Dropped during research</p>
+                  <ul className="space-y-1.5 text-xs leading-relaxed text-slate-400">
+                    {result.dropped.map((n, i) => (
+                      <li key={i}>✗ {n}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </div>
