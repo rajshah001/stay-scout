@@ -1,11 +1,22 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import BudgetCalculator from "@/components/BudgetCalculator";
 import StayCard from "@/components/StayCard";
+
+interface LiveListing {
+  roomId: string;
+  url: string;
+  title: string;
+  typeArea: string;
+  badge: string;
+  config: string;
+  monthlyPrice: string;
+  originalPrice: string;
+}
 import StayDrawer from "@/components/StayDrawer";
 import { useToast } from "@/components/Toast";
 import { hiddenGemLinks } from "@/lib/deeplinks";
@@ -16,6 +27,14 @@ interface DiscoverLead {
   url: string;
   source: string;
   extra?: string;
+}
+
+interface OtaEvidence {
+  title: string;
+  url: string;
+  rating: string | null;
+  price: string | null;
+  snippet: string | null;
 }
 
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -71,6 +90,9 @@ function StaysPanel({
   const [toolsOpen, setToolsOpen] = useState(false);
   const [intelOpen, setIntelOpen] = useState(false);
   const [verdictOpen, setVerdictOpen] = useState(false);
+  const autoRan = useRef(false);
+  const [liveListings, setLiveListings] = useState<LiveListing[]>([]);
+  const [otaEvidence, setOtaEvidence] = useState<OtaEvidence[]>([]);
 
   const runDiscovery = async () => {
     setDiscovering(true);
@@ -82,11 +104,18 @@ function StaysPanel({
         qs.set("lat", String(c.lat));
         qs.set("lng", String(c.lng));
       }
+      if (cfg) {
+        qs.set("checkin", cfg.checkin);
+        qs.set("checkout", cfg.checkout);
+        qs.set("adults", String(cfg.adults));
+      }
       const res = await fetch(`/api/discover?${qs.toString()}`);
       const data = await res.json();
       setLeads([...(data.osm ?? []), ...(data.web ?? [])].slice(0, 14));
+      setLiveListings(data.listings ?? []);
+      setOtaEvidence(data.otaEvidence ?? []);
       setDiscoverNote(
-        `engines: ${(data.engines ?? []).join(" + ") || "none responded — try again shortly"} · tip: ${data.tip ?? ""}`,
+        `engines: ${(data.engines ?? []).join(" + ") || "none"} · live Airbnb listings: ${(data.listings ?? []).length || 0}${data.airbnbError ? ` (${data.airbnbError})` : ""} · tip: ${data.tip ?? ""}`,
       );
     } catch {
       setDiscoverNote("Discovery failed — check your connection and retry.");
@@ -94,6 +123,13 @@ function StaysPanel({
       setDiscovering(false);
     }
   };
+
+  useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
+    runDiscovery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="animate-fade-up space-y-4">
@@ -138,6 +174,11 @@ function StaysPanel({
         >
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
             🧰 Verify live &amp; hidden-gem tools
+            {liveListings.length > 0 && (
+              <span className="ml-2 rounded bg-mint/15 px-1.5 py-0.5 text-[10px] text-mint">
+                {liveListings.length} live
+              </span>
+            )}
           </span>
           <span className="text-xs text-slate-500">{toolsOpen ? "▴ hide" : "▾ show"}</span>
         </button>
@@ -213,6 +254,73 @@ function StaysPanel({
           </div>
         )}
       </div>
+
+      {/* live listings — real rooms scraped with the trip's dates */}
+      {liveListings.length > 0 && (
+        <div className="rounded-2xl border border-mint/30 bg-mint/5 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-mint">
+            🎯 Real Airbnb rooms just scraped · your dates · WiFi filter ({liveListings.length})
+          </p>
+          <div className="grid gap-2">
+            {liveListings.map((l) => (
+              <a
+                key={l.roomId}
+                href={l.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 transition hover:border-mint/50"
+              >
+                <span className="shrink-0 rounded-lg bg-mint/15 px-2 py-1 font-mono text-sm font-bold text-mint">
+                  {l.monthlyPrice || "—"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-white">{l.title}</span>
+                  <span className="block truncate text-[11px] text-slate-500">
+                    {l.typeArea}
+                    {l.badge ? ` · ${l.badge}` : ""} · {l.config}
+                    {l.originalPrice ? ` · orig. ${l.originalPrice}` : ""}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[10px] uppercase text-mint">live ↗</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {otaEvidence.length > 0 && (
+        <div className="rounded-2xl border border-mint/30 bg-mint/5 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-mint">
+            🔎 OTA pages read — rating &amp; price evidence pulled for you ({otaEvidence.length})
+          </p>
+          <div className="grid gap-2">
+            {otaEvidence.map((e) => (
+              <a
+                key={e.url}
+                href={e.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 transition hover:border-mint/50"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-white">{e.title}</span>
+                  {e.snippet && (
+                    <span className="block truncate text-[11px] text-slate-500">{e.snippet}</span>
+                  )}
+                </span>
+                {e.rating && (
+                  <span className="shrink-0 rounded bg-amberx/15 px-2 py-1 font-mono text-xs font-bold text-amberx">
+                    {e.rating}
+                  </span>
+                )}
+                {e.price && (
+                  <span className="shrink-0 font-mono text-sm text-mint">{e.price}</span>
+                )}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* stays — the hero content */}
       <div>

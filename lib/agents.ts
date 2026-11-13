@@ -1,5 +1,6 @@
 import { glmChat, glmChatAll, parseJsonLoose } from "./glm";
 import { verifyLinksFor } from "./deeplinks";
+import { airbnbDiscover } from "./airbnb";
 import type {
   DestinationResult,
   StayCandidate,
@@ -149,6 +150,28 @@ async function scoutOne(
   });
   emit({ type: "log", agentId, line: `Researching stays for ${place}…` });
 
+  // ground-truth enrichment: scrape real Airbnb listings for these exact dates
+  let groundTruth = "";
+  try {
+    const disc = await airbnbDiscover(place.split(",")[0], {
+      checkin: cfg.checkin,
+      checkout: cfg.checkout,
+      adults: cfg.adults,
+    });
+    if (disc.listings.length > 0) {
+      emit({ type: "log", agentId, line: `Live scrape: ${disc.listings.length} real Airbnb listings captured (your dates, WiFi filter)` });
+      groundTruth =
+        "\n\nGROUND TRUTH — live Airbnb listings just scraped for these exact dates (WiFi filter applied). " +
+        "PREFER shortlisting from these real rooms; keep their exact names, prices and room URLs, and merge them into your JSON " +
+        "(set priceBand28n to the captured monthly price, mark priceLow/priceHigh from it, and note 'live-scraped ✅' in flags):\n" +
+        JSON.stringify(disc.listings, null, 1);
+    } else if (disc.error) {
+      emit({ type: "log", agentId, line: `Live scrape unavailable (${disc.error}) — using knowledge + platform links` });
+    }
+  } catch {
+    emit({ type: "log", agentId, line: "Live scrape failed — using knowledge + platform links" });
+  }
+
   const seatingNote =
     cfg.seating === "entire-preferred"
       ? "Prefer entire homes for the whole group; include room-pairs only when dramatically cheaper."
@@ -184,7 +207,7 @@ async function scoutOne(
 Trip window: ${dateRangeNote(cfg)} · ${cfg.adults} working adults · currency ${cfg.currency} · budget ${cfg.budgetPerMonth || "flexible"}
 ${seatingNote}
 Hard filters: wifi-for-calls=${cfg.mustHaveWifi} · dedicated workspace=${cfg.mustHaveWorkspace} · guest-favourite-only=${cfg.guestFavouriteOnly}
-Extra context from the team lead: ${cfg.extraNotes || "none"}${pocketsNote}${surroundingsNote}
+Extra context from the team lead: ${cfg.extraNotes || "none"}${pocketsNote}${surroundingsNote}${groundTruth}
 
 Produce the shortlist JSON now. If stock for this destination is genuinely thin (small village), say so in the tagline/flags and include the best realistic alternative within reach, flagged in flags as "alternative area".
 

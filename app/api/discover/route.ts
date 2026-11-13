@@ -1,4 +1,26 @@
 import { NextResponse } from "next/server";
+import { airbnbDiscover } from "@/lib/airbnb";
+
+const OTA_RE = /booking\.com|agoda\.com|makemytrip\.com|goibibo\.com|homestaysofindia\.com|treebo|fabhotels/i;
+
+/** Read an OTA page via r.jina.ai and pull out title + rating + price evidence. */
+async function readOtaPage(url: string): Promise<{ rating?: string; price?: string; snippet?: string }> {
+  try {
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      headers: { "User-Agent": "StayScout/1.0", "X-Timeout": "25", "X-Return-Format": "markdown" },
+      signal: AbortSignal.timeout(35_000),
+    });
+    if (!res.ok) return {};
+    const md = (await res.text()).slice(0, 6000);
+    const titleMatch = md.match(/^Title:\s*(.+)$/m);
+    const rating = md.match(/(\d\.\d)\s*\/\s*(?:10|5)|out of 5 average rating[,\s]*(\d+)|\((\d+) reviews?\)/i)?.[0];
+    const price = md.match(/₹\s?[\d,]{3,7}(?:\s*[-–]\s*₹\s?[\d,]{3,7})?/)?.[0];
+    const snippet = md.split("\n").find((l) => l.length > 60 && !/^Title:|^URL|^Markdown Content/.test(l))?.slice(0, 180);
+    return { rating, price, snippet };
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Free, keyless hidden-gem discovery — no Serper/Tavily required.
@@ -144,6 +166,9 @@ export async function GET(req: Request) {
   const place = searchParams.get("place")?.trim();
   const lat = Number(searchParams.get("lat"));
   const lng = Number(searchParams.get("lng"));
+  const checkin = searchParams.get("checkin") ?? "";
+  const checkout = searchParams.get("checkout") ?? "";
+  const adults = Number(searchParams.get("adults")) || 2;
   if (!place) {
     return NextResponse.json({ error: "place is required" }, { status: 400 });
   }
@@ -176,11 +201,30 @@ export async function GET(req: Request) {
   ]);
   if (osm.length > 0) engines.push("overpass");
 
+  // real Airbnb listings with the trip's dates (keyless render via r.jina.ai)
+  const airbnb = checkin && checkout
+    ? await airbnbDiscover(place, { checkin, checkout, adults })
+    : { listings: [], url: "", error: undefined as string | undefined };
+
+  // deepen the OTA-looking web leads: read each page, attach rating/price evidence
+  const otaLeads = web.filter((r) => OTA_RE.test(r.url)).slice(0, 4);
+  const otaReads = await Promise.all(otaLeads.map((r) => readOtaPage(r.url)));
+
   return NextResponse.json(
     {
       place,
       query,
       engines,
+      listings: airbnb.listings,
+      airbnbUrl: airbnb.url,
+      airbnbError: airbnb.error ?? null,
+      otaEvidence: otaLeads.map((r, i) => ({
+        title: r.title,
+        url: r.url,
+        rating: otaReads[i]?.rating ?? null,
+        price: otaReads[i]?.price ?? null,
+        snippet: otaReads[i]?.snippet ?? null,
+      })),
       web: web.filter(
         (r) => !/facebook|twitter|x\.com|pinterest|tripadvisor\/Attraction/i.test(r.url),
       ),
