@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ConfigForm from "@/components/ConfigForm";
 import AgentTimeline from "@/components/AgentTimeline";
 import TopNavbar from "@/components/TopNavbar";
+import SearchBar from "@/components/SearchBar";
 import ResultsDashboard from "@/components/ResultsDashboard";
 import { createPlan, loadPlans, persistPlans, type Plan } from "@/lib/plans";
 import { buildDemoReport, DEMO_CONFIG, DEMO_COORDS, DEMO_RESULTS } from "@/lib/demo";
@@ -24,6 +25,7 @@ export default function Home() {
   const resultsRef = useRef<DestinationResult[]>([]);
   const hydrating = useRef(false);
   const phaseRef = useRef<string>("idle");
+  const [editing, setEditing] = useState(true);
 
   const setPhaseSafe = useCallback((p: string) => {
     phaseRef.current = p;
@@ -39,19 +41,14 @@ export default function Home() {
     const wantsDemo =
       typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
     const stored = loadPlans();
-    if (wantsDemo && stored.some((p) => p.name.startsWith("Demo —"))) {
-      const existing = stored.find((p) => p.name.startsWith("Demo —"))!;
-      setActiveId(existing.id);
-      hydrate(existing);
-      return;
-    }
     if (wantsDemo) {
+      // the demo is a product artifact — always rebuild fresh from the bundled dataset
       const demo = createPlan("Demo — South India (verified)");
       demo.status = "done";
       demo.config = DEMO_CONFIG;
       demo.results = DEMO_RESULTS;
       demo.report = buildDemoReport();
-      const next = [demo, ...stored];
+      const next = [demo, ...stored.filter((p) => !p.name.startsWith("Demo —"))];
       persistPlans(next);
       setPlans(next);
       setActiveId(demo.id);
@@ -73,6 +70,7 @@ export default function Home() {
   const hydrate = (plan: Plan) => {
     hydrating.current = true;
     resultsRef.current = plan.results;
+    setEditing(plan.results.length === 0);
     setAgents([]);
     setLogs({});
     setError("");
@@ -248,6 +246,7 @@ export default function Home() {
       setLogs({});
       resultsRef.current = [];
       setPhaseSafe("connecting");
+      setEditing(false);
       updateActive({ status: "running", config, results: [], report: "" });
 
       try {
@@ -381,12 +380,17 @@ export default function Home() {
         </div>
       )}
 
-      {active && (
+      {active && active.results.length > 0 && !editing && (
+        <SearchBar plan={active} editing={editing} onToggleEdit={() => setEditing((e) => !e)} onRun={run} running={!!running} />
+      )}
+
+      {active && (active.results.length === 0 || editing) && (
         <ConfigForm
           key={active.id}
           initial={active.config}
           onRun={run}
           running={!!running}
+          onDone={() => setEditing(false)}
         />
       )}
 

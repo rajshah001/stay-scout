@@ -13,10 +13,12 @@ function todayPlus(days: number): string {
 export default function ConfigForm({
   initial,
   onRun,
+  onDone,
   running,
 }: {
   initial?: TripConfig | null;
   onRun: (cfg: TripConfig) => void;
+  onDone?: () => void;
   running: boolean;
 }) {
   const [activeSet, setActiveSet] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export default function ConfigForm({
 
   const submit = () => {
     if (destinations.length === 0) return;
+    onDone?.();
     onRun({
       destinations,
       checkin,

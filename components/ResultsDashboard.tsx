@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import BudgetCalculator from "@/components/BudgetCalculator";
+import StayCard from "@/components/StayCard";
 import StayDrawer from "@/components/StayDrawer";
 import { useToast } from "@/components/Toast";
 import { hiddenGemLinks } from "@/lib/deeplinks";
@@ -177,79 +178,28 @@ function StaysPanel({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-white/10">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="bg-white/5 text-xs uppercase tracking-wider text-slate-400">
-            <tr>
-              <th className="px-4 py-3">#</th>
-              <th className="px-4 py-3">Option</th>
-              <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3">Rating</th>
-              <th className="px-4 py-3">28-night cost</th>
-              <th className="px-4 py-3">Config &amp; notes</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {result.stays.map((s, i) => (
-              <tr
-                key={`${s.name}-${i}`}
-                onClick={() => onOpenStay(s)}
-                className="cursor-pointer align-top transition hover:bg-white/[0.04]"
-              >
-                <td className="px-4 py-3 text-slate-500">{i + 1}</td>
-                <td className="max-w-[220px] px-4 py-3">
-                  <span className="font-medium text-accent-glow underline-offset-2">{s.name}</span>
-                  <p className="mt-0.5 text-xs text-slate-500">{s.platform}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full border px-2 py-0.5 text-xs ${TYPE_BADGE[s.type] ?? TYPE_BADGE.unknown}`}>
-                    {s.type}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  {s.rating != null ? (
-                    <span className="text-amberx">★ {s.rating}</span>
-                  ) : (
-                    <span className="text-slate-500">—</span>
-                  )}
-                  {s.reviewCount != null && <span className="ml-1 text-xs text-slate-500">({s.reviewCount})</span>}
-                  {s.guestFavourite && (
-                    <span className="ml-1 rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-semibold text-accent-glow">GF</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 font-mono text-xs text-white">
-                  {s.priceBand28n}
-                  <p className="mt-0.5 font-sans text-[11px] text-slate-500">{s.sources.length} source(s)</p>
-                </td>
-                <td className="max-w-[340px] px-4 py-3 text-xs leading-relaxed text-slate-400">
-                  {[s.bedrooms, s.bathrooms].some((n) => n != null) && (
-                    <span className="text-slate-300">
-                      {s.bedrooms ?? "?"}BR · {s.bathrooms ?? "?"}BA
-                      {s.sleeps ? ` · sleeps ${s.sleeps}` : ""} ·{" "}
-                    </span>
-                  )}
-                  <span className="text-slate-300">{s.wifiEvidence}</span>
-                  {s.dedicatedWorkspace != null && (
-                    <span className={s.dedicatedWorkspace ? " text-mint" : " text-rosex"}>
-                      {" "}
-                      · workspace: {s.dedicatedWorkspace ? "yes" : "no"}
-                    </span>
-                  )}
-                  {s.powerBackup && s.powerBackup !== "unknown" && <span> · backup: {s.powerBackup}</span>}
-                  {s.locationArea && <span> · {s.locationArea}</span>}
-                  {s.flags.length > 0 && <span className=" text-amberx"> · {s.flags.join(" · ")}</span>}
-                </td>
-              </tr>
-            ))}
-            {result.stays.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
-                  No candidates returned — try re-running or widening the filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div>
+        <div className="mb-3 flex items-center justify-between px-1">
+          <p className="text-xs text-slate-500">
+            {result.stays.length} options · sorted low → high · click a card for full evidence
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {result.stays.map((s, i) => (
+            <StayCard
+              key={`${s.name}-${i}`}
+              stay={s}
+              cfg={cfg}
+              seed={i}
+              onOpen={() => onOpenStay(s)}
+            />
+          ))}
+        </div>
+        {result.stays.length === 0 && (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
+            No candidates returned — try re-running or widening the filters.
+          </div>
+        )}
       </div>
 
       {result.connectivityNotes.length > 0 && (
