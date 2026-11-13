@@ -56,6 +56,8 @@ Any OpenAI-compatible endpoint works — point `GLM_BASE_URL` at it and set your
 
 ## 💎 The hidden-gem methodology
 
+The full post-mortem lives in [docs/hidden-gems.md](docs/hidden-gems.md) — case study: a user found **Eden's Homestay** in **Chongey Tar** (Gangtok), an Instagram-marketed homestay with a single OTA review, that our agents missed. Four structural gaps were identified; each is now fixed in the pipeline:
+
 A real user found **Eden's Homestay** in **Chongey Tar** (a Gangtok micro-locality) — an offbeat, Instagram-marketed property (`@edenshomestaysikkim`) our agents missed while researching Sikkim. The post-mortem identified four structural gaps, each now fixed:
 
 | Gap | Why we missed it | Fix |
