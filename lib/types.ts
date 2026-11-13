@@ -24,7 +24,7 @@ export interface StayCandidate {
   eveningAccess: string;
   heating: string;
   flags: string[];
-  sources: string[];
+  sources: { name: string; url: string }[];
 }
 
 export interface DestinationResult {
@@ -36,6 +36,7 @@ export interface DestinationResult {
   connectivityNotes: string[];
   dropped: string[];
   verifyLinks: VerifyLinks;
+  coords?: { lat: number; lng: number };
   error?: string;
 }
 

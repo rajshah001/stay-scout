@@ -93,13 +93,14 @@ async function runPlanner(cfg: TripConfig, emit: Emit): Promise<void> {
         role: "user",
         content: `Trip: ${cfg.destinations.join(", ")} | ${dateRangeNote(cfg)} | ${cfg.adults} working adults | currency ${cfg.currency} | seating preference: ${cfg.seating} | must-have: wifi=${cfg.mustHaveWifi}, workspace=${cfg.mustHaveWorkspace}, guestFavouriteOnly=${cfg.guestFavouriteOnly} | budget: ${cfg.budgetPerMonth || "flexible"} | extra: ${cfg.extraNotes || "none"}.
 
-Return JSON: {"normalizedDestinations": ["primary town/village name per destination, with region, e.g. 'Madikeri, Coorg, Karnataka'"], "seasonNote": "one line on weather/peak season for the dates", "risks": ["one-line risks to watch, e.g. peak surge, landslide zones, wifi-weak areas"]}`,
+Return JSON: {"normalizedDestinations": ["primary town/village name per destination, with region, e.g. 'Madikeri, Coorg, Karnataka'"], "coordinates": [{"name": "exact normalized destination string", "lat": number, "lng": number}], "seasonNote": "one line on weather/peak season for the dates", "risks": ["one-line risks to watch, e.g. peak surge, landslide zones, wifi-weak areas"]}`,
       },
     ],
-    { json: true, temperature: 0.2, maxTokens: 1200 },
+    { json: true, temperature: 0.2, maxTokens: 1600 },
   );
   const plan = parseJsonLoose<{
     normalizedDestinations: string[];
+    coordinates?: { name: string; lat: number; lng: number }[];
     seasonNote: string;
     risks: string[];
   }>(raw);
@@ -111,9 +112,15 @@ Return JSON: {"normalizedDestinations": ["primary town/village name per destinat
   (plan as unknown as { risks?: string[] }).risks?.forEach((r) =>
     emit({ type: "log", agentId: "planner", line: r }),
   );
-  // stash normalized names on config for scouts
+  // stash normalized names + coordinates on config for scouts/orchestrator
   (cfg as TripConfig & { __normalized?: string[] }).__normalized =
     plan.normalizedDestinations;
+  (cfg as TripConfig & { __coords?: Record<string, { lat: number; lng: number }> }).__coords =
+    Object.fromEntries(
+      (plan.coordinates ?? [])
+        .filter((c) => typeof c.lat === "number" && typeof c.lng === "number")
+        .map((c) => [c.name, { lat: c.lat, lng: c.lng }]),
+    );
 }
 
 /* ------------------------------------------------------------------ */
@@ -388,8 +395,12 @@ export async function runResearch(cfg: TripConfig, emit: Emit): Promise<void> {
     await runPlanner(cfg, emit);
     emit({ type: "phase", phase: "scouting", detail: `${cfg.destinations.length} destination scouts in parallel` });
 
-    const normalized =
-      (cfg as TripConfig & { __normalized?: string[] }).__normalized ?? cfg.destinations;
+    const cfgX = cfg as TripConfig & {
+      __normalized?: string[];
+      __coords?: Record<string, { lat: number; lng: number }>;
+    };
+    const normalized = cfgX.__normalized ?? cfg.destinations;
+    const coords = cfgX.__coords ?? {};
 
     const results: DestinationResult[] = [];
     const tasks = normalized.map((place, i) => ({ place, agentId: `scout-${i}` }));
@@ -401,13 +412,14 @@ export async function runResearch(cfg: TripConfig, emit: Emit): Promise<void> {
         while (cursor < tasks.length) {
           const t = tasks[cursor++];
           const result = await scoutOne(t.place, cfg, emit, t.agentId);
-          if (!result.error && result.stays.length > 0) {
-            emit({ type: "destination", result });
-            results.push(result);
-          } else {
-            emit({ type: "destination", result }); // surface errors in UI too
-            results.push(result);
+          result.coords = coords[t.place] ?? coords[normalized[tasks.indexOf(t)]] ?? result.coords;
+          // tolerate key drift: nearest match by prefix
+          if (!result.coords) {
+            const key = Object.keys(coords).find((k) => k.includes(t.place.split(",")[0].trim()));
+            if (key) result.coords = coords[key];
           }
+          emit({ type: "destination", result });
+          results.push(result);
         }
       }),
     );

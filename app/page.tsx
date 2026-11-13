@@ -1,310 +1,134 @@
-"use client";
+import Link from "next/link";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import ConfigForm from "@/components/ConfigForm";
-import AgentTimeline from "@/components/AgentTimeline";
-import ResultsDashboard from "@/components/ResultsDashboard";
-import { createPlan, loadPlans, persistPlans, type Plan } from "@/lib/plans";
-import type {
-  AgentStatus,
-  DestinationResult,
-  StreamEvent,
-  TripConfig,
-} from "@/lib/types";
+const FEATURES = [
+  {
+    icon: "🧭",
+    title: "Planner agent",
+    body: "Normalises your destinations, flags season & peak-surge risks for your exact window before anyone starts googling.",
+  },
+  {
+    icon: "🔍",
+    title: "Destination scouts",
+    body: "One agent per place, running in parallel. Real cross-checkable candidates — entire homes and cheaper room-pairs — with honest est. monthly pricing that accounts for 28-night discounts and peak surges.",
+  },
+  {
+    icon: "🕵️",
+    title: "Skeptical verifier",
+    body: "Audits every shortlist against your hard filters. Nightly-rate traps, thin sources and missing wifi evidence get flagged, not buried.",
+  },
+  {
+    icon: "📝",
+    title: "Report composer",
+    body: "A decisive markdown report: Answer-First ranking, one cost-sorted table per place, booking playbook with the host-validation message.",
+  },
+  {
+    icon: "🔗",
+    title: "One-click ground truth",
+    body: "Every claim ships with the exact filtered Airbnb search (your dates, guests, WiFi), Booking, Maps and Reddit links. Agents grind — you verify.",
+  },
+  {
+    icon: "🗺️",
+    title: "Map, budget, drawers",
+    body: "Destination pins with live prices, a per-trip month-cost calculator, and stay drawers with evidence and a ready-to-send host message.",
+  },
+];
 
-export default function Home() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [phase, setPhase] = useState<string>("idle");
-  const [agents, setAgents] = useState<AgentStatus[]>([]);
-  const [logs, setLogs] = useState<Record<string, string[]>>({});
-  const [error, setError] = useState("");
-  const resultsRef = useRef<DestinationResult[]>([]);
-  const hydrating = useRef(false);
-  const phaseRef = useRef<string>("idle");
+const STEPS = [
+  { n: "1", t: "Describe the trip", d: "Any destinations on earth, dates, group size, hard filters (video-call WiFi, workspace, Guest-favourite)." },
+  { n: "2", t: "Agents fan out", d: "Planner → N parallel scouts → verifier → composer, streamed live while you watch." },
+  { n: "3", t: "Decide & verify", d: "Cost-sorted shortlist, map, budget math, and pre-filtered listing links — then book with confidence." },
+];
 
-  const setPhaseSafe = useCallback((p: string) => {
-    phaseRef.current = p;
-    setPhase(p);
-  }, []);
-
-  const active = plans.find((p) => p.id === activeId) ?? null;
-  const running =
-    active?.status === "running" && phase !== "done" && phase !== "error";
-
-  // hydrate trips from localStorage once
-  useEffect(() => {
-    const stored = loadPlans();
-    if (stored.length > 0) {
-      setPlans(stored);
-      setActiveId(stored[0].id);
-      hydrate(stored[0]);
-    } else {
-      const first = createPlan();
-      setPlans([first]);
-      setActiveId(first.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const hydrate = (plan: Plan) => {
-    hydrating.current = true;
-    resultsRef.current = plan.results;
-    setAgents([]);
-    setLogs({});
-    setError("");
-    setPhaseSafe(
-      plan.status === "done" || plan.status === "error"
-        ? plan.status
-        : plan.status === "running"
-          ? "done" // a reload mid-run: treat as finished snapshot
-          : "idle",
-    );
-    hydrating.current = false;
-  };
-
-  const updateActive = useCallback(
-    (patch: Partial<Plan> | ((p: Plan) => Partial<Plan>)) => {
-      setPlans((cur) => {
-        const next = cur.map((p) =>
-          p.id === activeId
-            ? {
-                ...p,
-                ...(typeof patch === "function" ? patch(p) : patch),
-                updatedAt: Date.now(),
-              }
-            : p,
-        );
-        persistPlans(next);
-        return next;
-      });
-    },
-    [activeId],
-  );
-
-  const upsertAgent = useCallback((agent: AgentStatus) => {
-    setAgents((cur) => {
-      const idx = cur.findIndex((a) => a.id === agent.id);
-      if (idx === -1) return [...cur, agent];
-      const next = [...cur];
-      next[idx] = agent;
-      return next;
-    });
-  }, []);
-
-  const pushLog = useCallback((agentId: string, line: string) => {
-    setLogs((cur) => ({
-      ...cur,
-      [agentId]: [...(cur[agentId] ?? []), line],
-    }));
-  }, []);
-
-  const switchPlan = (plan: Plan) => {
-    if (running) return;
-    setActiveId(plan.id);
-    hydrate(plan);
-  };
-
-  const newTrip = () => {
-    if (running) return;
-    const plan = createPlan(plans.length > 0 ? `Trip ${plans.length + 1}` : undefined);
-    setPlans((cur) => {
-      const next = [plan, ...cur];
-      persistPlans(next);
-      return next;
-    });
-    setActiveId(plan.id);
-    hydrate(plan);
-  };
-
-  const deletePlan = (id: string) => {
-    if (running && id === activeId) return;
-    setPlans((cur) => {
-      const next = cur.filter((p) => p.id !== id);
-      persistPlans(next);
-      return next;
-    });
-    if (id === activeId) {
-      const remaining = plans.filter((p) => p.id !== id);
-      const fallback = remaining[0] ?? createPlan();
-      if (remaining.length === 0) {
-        setPlans([fallback]);
-        persistPlans([fallback]);
-      }
-      setActiveId(fallback.id);
-      hydrate(fallback);
-    }
-  };
-
-  const run = useCallback(
-    async (config: TripConfig) => {
-      if (!activeId) return;
-      setError("");
-      setAgents([]);
-      setLogs({});
-      resultsRef.current = [];
-      setPhaseSafe("connecting");
-      updateActive({ status: "running", config, results: [], report: "" });
-
-      try {
-        const res = await fetch("/api/research", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(config),
-        });
-        if (!res.ok || !res.body) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? `Request failed (${res.status})`);
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split("\n\n");
-          buffer = parts.pop() ?? "";
-          for (const part of parts) {
-            const line = part.trim();
-            if (!line.startsWith("data:")) continue;
-            let event: StreamEvent;
-            try {
-              event = JSON.parse(line.slice(5).trim()) as StreamEvent;
-            } catch {
-              continue;
-            }
-            switch (event.type) {
-              case "phase":
-                setPhaseSafe(event.phase);
-                break;
-              case "agent":
-                upsertAgent(event.agent);
-                break;
-              case "log":
-                pushLog(event.agentId, event.line);
-                break;
-              case "destination":
-                resultsRef.current = [
-                  ...resultsRef.current.filter(
-                    (r) => r.destination !== event.result.destination,
-                  ),
-                  event.result,
-                ];
-                updateActive({ results: resultsRef.current });
-                break;
-              case "report":
-                updateActive((p) => ({ report: p.report + event.markdown }));
-                break;
-              case "error":
-                setError(event.message);
-                updateActive({ status: "error" });
-                break;
-              case "done": {
-                const final = phaseRef.current === "error" ? "error" : "done";
-                setPhaseSafe(final);
-                updateActive({ status: final });
-                break;
-              }
-            }
-          }
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        setPhaseSafe("error");
-        updateActive({ status: "error" });
-      }
-    },
-    [activeId, pushLog, updateActive, upsertAgent],
-  );
-
+export default function Landing() {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
-      {/* header */}
-      <header className="animate-fade-up mb-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Stay<span className="text-accent-soft">Scout</span>
-          </h1>
-          <p className="mt-1.5 text-sm text-slate-400 sm:text-base">
-            Multi-agent workation stay research — any destinations, anywhere on earth.
-          </p>
-        </div>
-        <div className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 font-mono text-xs text-accent-glow">
-          glm-5.3-flash
-        </div>
-      </header>
-
-      {/* trip bar */}
-      <div className="animate-fade-up mb-5 flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Trips
+    <main className="relative mx-auto max-w-6xl px-4 sm:px-8">
+      {/* nav */}
+      <nav className="flex items-center justify-between py-6">
+        <span className="text-lg font-bold text-white">
+          Stay<span className="text-accent-soft">Scout</span>
         </span>
-        {plans.map((p) => (
-          <span
-            key={p.id}
-            className={`group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-              p.id === activeId
-                ? "border-accent bg-accent/20 text-white"
-                : "border-white/10 bg-white/5 text-slate-300 hover:border-white/25"
-            }`}
-          >
-            <button onClick={() => switchPlan(p)} className="max-w-[220px] truncate">
-              {p.name}
-              {p.status === "done" && <span className="ml-1 text-mint">✓</span>}
-              {p.status === "running" && <span className="ml-1 text-accent-glow">●</span>}
-            </button>
-            <button
-              onClick={() => deletePlan(p.id)}
-              title="Delete trip"
-              className="text-slate-500 opacity-0 transition hover:text-rosex group-hover:opacity-100"
-            >
-              ×
-            </button>
+        <div className="flex items-center gap-3">
+          <a href="#how" className="hidden text-sm text-slate-400 transition hover:text-white sm:block">
+            How it works
+          </a>
+          <Link href="/app" className="btn-primary !py-2 text-sm">
+            Open workspace →
+          </Link>
+        </div>
+      </nav>
+
+      {/* hero */}
+      <section className="animate-fade-up py-16 text-center sm:py-24">
+        <p className="mx-auto mb-4 w-fit rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent-glow">
+          Powered by GLM agents · glm-5.3-flash
+        </p>
+        <h1 className="mx-auto max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-6xl">
+          Month-long workations,
+          <span className="bg-gradient-to-r from-accent-soft via-accent-glow to-mint bg-clip-text text-transparent">
+            {" "}
+            researched in minutes
           </span>
+        </h1>
+        <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+          A team of AI agents scouts, verifies and cost-sorts real stays for your
+          working month — entire homes or room-pairs, wifi evidence or honest flags,
+          every claim one click away from the listing. From Wayanad to Lisbon.
+        </p>
+        <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+          <Link href="/app" className="btn-primary !px-7 !py-3 text-base">
+            Start a trip — free
+          </Link>
+          <Link href="/app?demo=1" className="btn-ghost !px-6 !py-3 text-base">
+            ▶ See a verified example trip
+          </Link>
+        </div>
+        <p className="mt-4 text-xs text-slate-600">
+          No signup · trips stay in your browser · bring your own GLM key
+        </p>
+      </section>
+
+      {/* features */}
+      <section className="grid gap-4 pb-20 sm:grid-cols-2 lg:grid-cols-3">
+        {FEATURES.map((f) => (
+          <div key={f.title} className="card p-6 transition hover:border-accent/40">
+            <span className="text-2xl">{f.icon}</span>
+            <h3 className="mt-3 font-semibold text-white">{f.title}</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{f.body}</p>
+          </div>
         ))}
-        <button
-          onClick={newTrip}
-          disabled={running}
-          className="chip !border-accent/50 text-accent-glow disabled:opacity-40"
+      </section>
+
+      {/* how it works */}
+      <section id="how" className="pb-24">
+        <h2 className="text-center text-2xl font-bold text-white sm:text-3xl">
+          How a run works
+        </h2>
+        <div className="mt-10 grid gap-4 sm:grid-cols-3">
+          {STEPS.map((s) => (
+            <div key={s.n} className="card relative p-6">
+              <span className="absolute -top-3.5 left-6 flex size-8 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white">
+                {s.n}
+              </span>
+              <h3 className="mt-3 font-semibold text-white">{s.t}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{s.d}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-8 text-center font-mono text-xs text-slate-600">
+          planner ──▶ scout₁ ──▶ scout₂ ──▶ … ──▶ verifier ──▶ composer ──▶ you
+        </p>
+      </section>
+
+      <footer className="border-t border-white/5 py-8 text-center text-xs text-slate-600">
+        StayScout — built from a real month-long workation hunt.{" "}
+        <a
+          href="https://github.com/rajshah001/stay-scout"
+          target="_blank"
+          rel="noreferrer"
+          className="text-slate-400 underline-offset-2 hover:underline"
         >
-          ＋ New trip
-        </button>
-      </div>
-
-      {active && (
-        <ConfigForm
-          key={active.id}
-          initial={active.config}
-          initialName={active.name}
-          onNameChange={(name) => updateActive({ name: name.trim() || active.name })}
-          onRun={run}
-          running={!!running}
-        />
-      )}
-
-      {error && (
-        <div className="mt-5 rounded-xl border border-rosex/40 bg-rosex/10 p-4 text-sm text-rosex">
-          <span className="font-semibold">Error:</span> {error}
-        </div>
-      )}
-
-      {agents.length > 0 && (
-        <div className="mt-5">
-          <AgentTimeline agents={agents} logs={logs} phase={phase} />
-        </div>
-      )}
-
-      {active && active.results.length > 0 && (
-        <div className="mt-5">
-          <ResultsDashboard results={active.results} report={active.report} cfg={active.config} />
-        </div>
-      )}
-
-      <footer className="mt-12 border-t border-white/5 pt-6 text-center text-xs text-slate-600">
-        StayScout · every AI claim ships with one-click ground-truth links — the human verifies, the agents grind.
+          GitHub ↗
+        </a>
       </footer>
     </main>
   );
