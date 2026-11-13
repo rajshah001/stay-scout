@@ -10,6 +10,13 @@ import { useToast } from "@/components/Toast";
 import { hiddenGemLinks } from "@/lib/deeplinks";
 import type { DestinationResult, StayCandidate, TripConfig } from "@/lib/types";
 
+interface DiscoverLead {
+  title: string;
+  url: string;
+  source: string;
+  extra?: string;
+}
+
 const MapView = dynamic(() => import("@/components/MapView"), {
   ssr: false,
   loading: () => (
@@ -50,11 +57,40 @@ function StaysPanel({
   result,
   cfg,
   onOpenStay,
+  onAddLead,
 }: {
   result: DestinationResult;
   cfg: TripConfig | null;
   onOpenStay: (stay: StayCandidate) => void;
+  onAddLead: (destination: string, lead: DiscoverLead) => void;
 }) {
+  const [discovering, setDiscovering] = useState(false);
+  const [leads, setLeads] = useState<DiscoverLead[]>([]);
+  const [discoverNote, setDiscoverNote] = useState("");
+
+  const runDiscovery = async () => {
+    setDiscovering(true);
+    setDiscoverNote("");
+    try {
+      const c = result.coords;
+      const qs = new URLSearchParams({ place: result.destination });
+      if (c) {
+        qs.set("lat", String(c.lat));
+        qs.set("lng", String(c.lng));
+      }
+      const res = await fetch(`/api/discover?${qs.toString()}`);
+      const data = await res.json();
+      setLeads([...(data.osm ?? []), ...(data.web ?? [])].slice(0, 14));
+      setDiscoverNote(
+        `engines: ${(data.engines ?? []).join(" + ") || "none responded — try again shortly"} · tip: ${data.tip ?? ""}`,
+      );
+    } catch {
+      setDiscoverNote("Discovery failed — check your connection and retry.");
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
   return (
     <div className="animate-fade-up space-y-4">
       <div className="rounded-2xl border border-accent/25 bg-accent/10 p-5">
@@ -85,6 +121,45 @@ function StaysPanel({
           💎 Hidden-gem hunt · agents can't browse — these queries find the Instagram-only,
           single-village stays mainstream lists miss
         </p>
+        <button
+          onClick={runDiscovery}
+          disabled={discovering}
+          className="btn-ghost mt-2.5 !border-mint/40 text-xs text-mint disabled:opacity-40"
+        >
+          {discovering ? "Scanning DuckDuckGo + OpenStreetMap…" : "▶ Auto-discover (free · no API key)"}
+        </button>
+        {discoverNote && <p className="mt-2 text-[10px] text-slate-500">{discoverNote}</p>}
+        {leads.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {leads.map((l) => (
+              <div
+                key={l.url}
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+              >
+                <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
+                  {l.source}
+                </span>
+                <a
+                  href={l.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="min-w-0 flex-1 truncate text-xs text-accent-glow hover:underline"
+                  title={l.url}
+                >
+                  {l.title}
+                </a>
+                {l.extra && <span className="hidden truncate text-[10px] text-slate-500 lg:block">{l.extra}</span>}
+                <button
+                  onClick={() => onAddLead(result.destination, l)}
+                  title="Add as hidden gem lead to this trip"
+                  className="shrink-0 rounded-lg border border-mint/40 px-2 py-1 text-[10px] font-semibold text-mint transition hover:bg-mint/10"
+                >
+                  + lead
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {hiddenGemLinks(result.destination).map((l) => (
             <a
@@ -208,11 +283,13 @@ export default function ResultsDashboard({
   report,
   cfg,
   coords,
+  onAddLead,
 }: {
   results: DestinationResult[];
   report: string;
   cfg: TripConfig | null;
   coords?: Record<string, { lat: number; lng: number }>;
+  onAddLead?: (destination: string, lead: DiscoverLead) => void;
 }) {
   const [tab, setTab] = useState<"stays" | "map" | "budget" | "report">("stays");
   const [dest, setDest] = useState(0);
@@ -331,7 +408,7 @@ export default function ResultsDashboard({
       </div>
 
       {tab === "stays" && active && (
-        <StaysPanel result={active} cfg={cfg} onOpenStay={setOpenStay} />
+        <StaysPanel result={active} cfg={cfg} onOpenStay={setOpenStay} onAddLead={onAddLead ?? (() => undefined)} />
       )}
 
       {tab === "map" && (

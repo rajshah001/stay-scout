@@ -181,6 +181,65 @@ export default function Home() {
     }
   };
 
+  const addLead = useCallback(
+    (destination: string, lead: { title: string; url: string; source: string; extra?: string }) => {
+      updateActive((p) => {
+        const stay = {
+          name: lead.title.slice(0, 120),
+          type: "unknown" as const,
+          platform: lead.source === "overpass" ? "OpenStreetMap" : "web discovery",
+          url: lead.url,
+          rating: null,
+          reviewCount: null,
+          guestFavourite: null,
+          superhost: null,
+          bedrooms: null,
+          bathrooms: null,
+          sleeps: null,
+          priceBand28n: "price on request",
+          priceLow: null,
+          priceHigh: null,
+          wifiEvidence: "unverified — confirm with host",
+          dedicatedWorkspace: null,
+          powerBackup: "unverified",
+          locationArea: "",
+          eveningAccess: "",
+          heating: "",
+          flags: ["hidden gem lead — discovered via free auto-discovery", "verify on the linked page before booking"],
+          sources: [{ name: lead.source, url: lead.url }],
+        };
+        const exists = p.results.find((r) => r.destination === destination);
+        const results = exists
+          ? p.results.map((r) =>
+              r.destination === destination && !r.stays.some((s) => s.url === lead.url)
+                ? { ...r, stays: [...r.stays, stay] }
+                : r,
+            )
+          : [
+              ...p.results,
+              {
+                destination,
+                tagline: "Hidden-gem leads from free auto-discovery",
+                stays: [stay],
+                bestValue: "",
+                cheapestDecent: "",
+                connectivityNotes: [],
+                dropped: [],
+                verifyLinks: {
+                  airbnb: `https://www.airbnb.com/s/${encodeURIComponent(destination.split(",")[0])}/homes`,
+                  booking: "",
+                  googleMaps: "",
+                  reddit: "",
+                  google: "",
+                },
+              },
+            ];
+        return { results };
+      });
+    },
+    [updateActive],
+  );
+
   const run = useCallback(
     async (config: TripConfig) => {
       if (!activeId) return;
@@ -345,7 +404,13 @@ export default function Home() {
 
       {active && active.results.length > 0 && (
         <div className="mt-5">
-          <ResultsDashboard results={active.results} report={active.report} cfg={active.config} coords={active.name.startsWith("Demo") ? DEMO_COORDS : undefined} />
+          <ResultsDashboard
+          results={active.results}
+          report={active.report}
+          cfg={active.config}
+          coords={active.name.startsWith("Demo") ? DEMO_COORDS : undefined}
+          onAddLead={addLead}
+        />
         </div>
       )}
 
