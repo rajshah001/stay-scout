@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { StayCandidate, TripConfig } from "@/lib/types";
 import { airbnbRoomUrl } from "@/lib/deeplinks";
 
@@ -16,6 +17,23 @@ export default function StayDrawer({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // portal target + escape key + body scroll lock
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  useEffect(() => {
+    if (!stay) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [stay, onClose]);
 
   const hostMessage = useMemo(() => {
     if (!stay || !cfg) return "";
@@ -40,7 +58,7 @@ export default function StayDrawer({
     ].join("\n");
   }, [stay, cfg]);
 
-  if (!stay) return null;
+  if (!stay || !mounted) return null;
 
   const verifyUrl =
     stay.platform === "Airbnb" && /airbnb\.(com|co\.in)\/rooms\//.test(stay.url) && cfg
@@ -81,26 +99,26 @@ export default function StayDrawer({
     ["Heating", stay.heating || "—"],
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <aside className="relative flex h-full w-full max-w-lg flex-col overflow-y-auto border-l border-white/10 bg-ink-900 shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-white/10 bg-ink-900/95 p-5 backdrop-blur">
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex justify-end">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <aside className="animate-fade-up relative flex h-full w-full max-w-lg flex-col overflow-y-auto border-l border-white/10 bg-ink-900 shadow-[0_0_80px_rgba(0,0,0,0.6)]">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-white/10 bg-ink-900 px-6 pb-4 pt-5">
           <div>
-            <p className="text-xs uppercase tracking-wider text-slate-500">{destination}</p>
-            <h2 className="mt-0.5 text-lg font-semibold leading-snug text-white">{stay.name}</h2>
+            <p className="text-xs font-medium uppercase tracking-wider text-accent-glow">{destination}</p>
+            <h2 className="mt-1 text-lg font-semibold leading-snug text-white">{stay.name}</h2>
           </div>
-          <button onClick={onClose} className="btn-ghost !px-2.5 !py-1 text-xs">
+          <button onClick={onClose} className="btn-ghost !px-2.5 !py-1 text-xs" title="Close (Esc)">
             ✕
           </button>
         </div>
 
-        <div className="space-y-5 p-5">
+        <div className="space-y-5 p-6">
           {/* price + cta */}
-          <div className="rounded-xl border border-accent/30 bg-accent/10 p-4">
-            <p className="text-xs uppercase tracking-wider text-slate-400">28-night estimate</p>
-            <p className="mt-1 font-mono text-lg text-white">{stay.priceBand28n}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
+          <div className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/15 to-accent/5 p-5">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">28-night estimate</p>
+            <p className="mt-1 font-mono text-xl text-white">{stay.priceBand28n}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
               <a href={verifyUrl} target="_blank" rel="noreferrer" className="btn-primary !py-2 text-xs">
                 Open listing with our dates ↗
               </a>
@@ -113,13 +131,13 @@ export default function StayDrawer({
           </div>
 
           {/* facts */}
-          <div className="overflow-hidden rounded-xl border border-white/10">
+          <div className="overflow-hidden rounded-2xl border border-white/10">
             {rows.map(([k, v], i) => (
               <div
                 key={k}
-                className={`grid grid-cols-[110px_1fr] gap-3 px-4 py-2.5 text-sm ${i % 2 ? "bg-white/[0.03]" : ""}`}
+                className={`grid grid-cols-[120px_1fr] gap-3 px-4 py-3 text-sm ${i % 2 ? "bg-white/[0.03]" : ""}`}
               >
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{k}</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{k}</span>
                 <span className="leading-relaxed text-slate-300">{v}</span>
               </div>
             ))}
@@ -127,7 +145,7 @@ export default function StayDrawer({
 
           {/* flags */}
           {stay.flags.length > 0 && (
-            <div className="rounded-xl border border-amberx/30 bg-amberx/10 p-4">
+            <div className="rounded-2xl border border-amberx/30 bg-amberx/10 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-amberx">Flags</p>
               <ul className="mt-1.5 space-y-1 text-sm text-amberx/90">
                 {stay.flags.map((f, i) => (
@@ -145,12 +163,13 @@ export default function StayDrawer({
                 {copied ? "✓ copied" : "copy"}
               </button>
             </div>
-            <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-white/10 bg-ink-950/70 p-4 font-mono text-xs leading-relaxed text-slate-300">
+            <pre className="mt-2 whitespace-pre-wrap rounded-2xl border border-white/10 bg-ink-950/70 p-4 font-mono text-xs leading-relaxed text-slate-300">
               {hostMessage}
             </pre>
           </div>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ConfigForm from "@/components/ConfigForm";
 import AgentTimeline from "@/components/AgentTimeline";
+import TopNavbar from "@/components/TopNavbar";
 import ResultsDashboard from "@/components/ResultsDashboard";
 import { createPlan, loadPlans, persistPlans, type Plan } from "@/lib/plans";
 import { buildDemoReport, DEMO_CONFIG, DEMO_COORDS, DEMO_RESULTS } from "@/lib/demo";
@@ -38,6 +39,12 @@ export default function Home() {
     const wantsDemo =
       typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
     const stored = loadPlans();
+    if (wantsDemo && stored.some((p) => p.name.startsWith("Demo —"))) {
+      const existing = stored.find((p) => p.name.startsWith("Demo —"))!;
+      setActiveId(existing.id);
+      hydrate(existing);
+      return;
+    }
     if (wantsDemo) {
       const demo = createPlan("Demo — South India (verified)");
       demo.status = "done";
@@ -259,68 +266,66 @@ export default function Home() {
   );
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-8">
-      {/* header */}
-      <header className="animate-fade-up mb-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Stay<span className="text-accent-soft">Scout</span>
-          </h1>
-          <p className="mt-1.5 text-sm text-slate-400 sm:text-base">
-            Multi-agent workation stay research — any destinations, anywhere on earth.
-          </p>
-        </div>
-        <div className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 font-mono text-xs text-accent-glow">
-          glm-5.3-flash
-        </div>
-      </header>
+    <>
+      <TopNavbar
+        plans={plans}
+        activeId={activeId}
+        running={!!running}
+        onSwitch={switchPlan}
+        onNew={newTrip}
+        onDemo={loadDemoTrip}
+        onDelete={deletePlan}
+      />
 
-      {/* trip bar */}
-      <div className="animate-fade-up mb-5 flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Trips
-        </span>
-        {plans.map((p) => (
-          <span
-            key={p.id}
-            className={`group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-              p.id === activeId
-                ? "border-accent bg-accent/20 text-white"
-                : "border-white/10 bg-white/5 text-slate-300 hover:border-white/25"
-            }`}
-          >
-            <button onClick={() => switchPlan(p)} className="max-w-[220px] truncate">
-              {p.name}
-              {p.status === "done" && <span className="ml-1 text-mint">✓</span>}
-              {p.status === "running" && <span className="ml-1 text-accent-glow">●</span>}
-            </button>
-            <button
-              onClick={() => deletePlan(p.id)}
-              title="Delete trip"
-              className="text-slate-500 opacity-0 transition hover:text-rosex group-hover:opacity-100"
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <button
-          onClick={newTrip}
-          disabled={running}
-          className="chip !border-accent/50 text-accent-glow disabled:opacity-40"
-        >
-          ＋ New trip
-        </button>
-        <button onClick={loadDemoTrip} disabled={running} className="chip disabled:opacity-40">
-          ▶ Demo trip
-        </button>
-      </div>
+      <main className="mx-auto max-w-6xl px-4 pb-14 sm:px-8">
+      {/* trip header */}
+      {active && (
+        <div className="animate-fade-up mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <input
+              value={active.name}
+              onChange={(e) => updateActive({ name: e.target.value.trim() || active.name })}
+              className="w-full max-w-xl truncate border-b border-transparent bg-transparent text-2xl font-bold tracking-tight text-white outline-none transition placeholder-slate-600 hover:border-white/20 focus:border-accent/60 sm:text-3xl"
+              placeholder="Name this trip…"
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              {active.config ? (
+                <>
+                  <span>
+                    {new Date(active.config.checkin).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} → {new Date(active.config.checkout).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  </span>
+                  <span className="text-slate-700">·</span>
+                  <span>{active.config.adults} working adults</span>
+                  <span className="text-slate-700">·</span>
+                  <span>{active.config.destinations.length} destinations</span>
+                  <span className="text-slate-700">·</span>
+                  <span className="font-mono text-accent-glow">glm-5.3-flash</span>
+                </>
+              ) : (
+                <span>Draft — fill the brief below and run the agents</span>
+              )}
+              <span
+                className={`rounded-full border px-2 py-0.5 font-medium ${
+                  active.status === "done"
+                    ? "border-mint/40 bg-mint/10 text-mint"
+                    : active.status === "running"
+                      ? "border-accent/40 bg-accent/10 text-accent-glow"
+                      : active.status === "error"
+                        ? "border-rosex/40 bg-rosex/10 text-rosex"
+                        : "border-white/10 bg-white/5 text-slate-400"
+                }`}
+              >
+                {active.status}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {active && (
         <ConfigForm
           key={active.id}
           initial={active.config}
-          initialName={active.name}
-          onNameChange={(name) => updateActive({ name: name.trim() || active.name })}
           onRun={run}
           running={!!running}
         />
@@ -347,6 +352,7 @@ export default function Home() {
       <footer className="mt-12 border-t border-white/5 pt-6 text-center text-xs text-slate-600">
         StayScout · every AI claim ships with one-click ground-truth links — the human verifies, the agents grind.
       </footer>
-    </main>
+      </main>
+    </>
   );
 }

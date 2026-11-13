@@ -12,18 +12,13 @@ function todayPlus(days: number): string {
 
 export default function ConfigForm({
   initial,
-  initialName,
-  onNameChange,
   onRun,
   running,
 }: {
   initial?: TripConfig | null;
-  initialName?: string;
-  onNameChange?: (name: string) => void;
   onRun: (cfg: TripConfig) => void;
   running: boolean;
 }) {
-  const [planName, setPlanName] = useState(initialName ?? "");
   const [activeSet, setActiveSet] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>(initial?.destinations?.filter((d) => REGION_SETS.some((r) => r.places.includes(d))) ?? []);
   const [destText, setDestText] = useState(
@@ -41,11 +36,6 @@ export default function ConfigForm({
   const [guestFavouriteOnly, setGuestFavouriteOnly] = useState(initial?.guestFavouriteOnly ?? false);
   const [budgetPerMonth, setBudgetPerMonth] = useState(initial?.budgetPerMonth ?? "");
   const [extraNotes, setExtraNotes] = useState(initial?.extraNotes ?? "");
-
-  const setName = (value: string) => {
-    setPlanName(value);
-    onNameChange?.(value);
-  };
 
   const applySet = (setLabel: string) => {
     const set = REGION_SETS.find((r) => r.label === setLabel);
@@ -84,19 +74,10 @@ export default function ConfigForm({
 
   return (
     <div className="card animate-fade-up p-6 sm:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <span className="label">Trip name</span>
-          <input
-            value={planName}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. South India Dec 2026 · Portugal summer · Bali month"
-            className="field text-base font-semibold"
-          />
-        </div>
-      </div>
-
-      <h2 className="sr-only">Plan the research run</h2>
+      <h2 className="text-lg font-semibold text-white">Research brief</h2>
+      <p className="mt-1 text-sm text-slate-400">
+        Destinations, dates and hard filters — the agent team handles the rest.
+      </p>
 
       {/* destinations */}
       <div className="mt-6">
