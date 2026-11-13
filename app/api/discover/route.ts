@@ -77,6 +77,28 @@ async function ddgLite(query: string): Promise<DiscoverResult[]> {
   }
 }
 
+/** Mojeek: independent index, keyless HTML. Politeness-capped; often 403s abused IPs. */
+async function mojeek(query: string): Promise<DiscoverResult[]> {
+  try {
+    const res = await fetch(`https://www.mojeek.com/search?q=${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": UA },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const out: DiscoverResult[] = [];
+    const re = /<a class="title[^"]*" href="(https?:\/\/[^"]+)"[^>]*>([^<]+)<\/a>/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) && out.length < 10) {
+      if (out.some((r) => r.url === m![1])) continue;
+      out.push({ title: m[2].trim(), url: m[1], source: "mojeek" });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 async function overpass(lat: number, lng: number): Promise<DiscoverResult[]> {
   const d = 0.12; // ≈ ±13 km box
   const bbox = `${lat - d},${lng - d},${lat + d},${lng + d}`;
@@ -135,8 +157,18 @@ export async function GET(req: Request) {
         engines.push("searxng");
         return sx;
       }
-      engines.push("ddg-lite");
-      return ddgLite(query);
+      const ddg = await ddgLite(query);
+      if (ddg.length > 0) {
+        engines.push("ddg-lite");
+        return ddg;
+      }
+      const mj = await mojeek(query);
+      if (mj.length > 0) {
+        engines.push("mojeek");
+        return mj;
+      }
+      engines.push("all-keyless-engines-throttled");
+      return [];
     })(),
     Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)
       ? overpass(lat, lng)

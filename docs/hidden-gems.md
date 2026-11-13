@@ -37,4 +37,16 @@ During a Sikkim research run, the agents shortlisted 5 regions (Gangtok, Pelling
 
 ## What would take this from 90% to 100% automated
 
-A server-side discovery stage (`discover()`) using a search API (Serper / Tavily / Bing) or Instagram scraping — run between planner and scouts, feeding raw URLs into the scout context. The pipeline is structured so this slots in without changing the agent contracts; it's deliberately not built in because the product ships with no paid-API requirements beyond the GLM key.
+**Done — `GET /api/discover` (free, keyless):** the product now ships an automated discovery stage with a rotation of free engines (verified by live testing from a clean IP):
+
+| Engine | Status | Notes |
+|---|---|---|
+| **SearXNG** (self-hosted) | ✅ reliable | The genuinely free & open-source answer. One Docker container, JSON API, aggregates 200+ engines. Set `SEARXNG_BASE_URL`. Public instances usually bot-wall JSON. |
+| **DuckDuckGo lite** | ⚠️ keyless, flaky | Worked in testing; throttles per-IP after repeated hits. Unofficial. |
+| **Mojeek** | ⚠️ keyless, flaky | Independent index; 403s abused networks. |
+| **Overpass (OpenStreetMap)** | ⚠️ keyless, best-effort | Maps mapped guest houses/homestays with coordinates. Community servers hit capacity; mirror-rotated (overpass-api.de → kumi → private.coffee). |
+| **r.jina.ai** | ✅ keyless | Reads any result URL as clean markdown — verified live pulling an Agoda listing. |
+| Marginalia | 🔑 free key now required | Open-source independent index; great for the indie web. |
+| Serper / Tavily | 💰 freemium | The user asked for alternatives to these — SearXNG self-host is the drop-in free replacement. |
+
+UI: the **💎 Hidden-gem hunt** box has an **"▶ Auto-discover (free · no API key)"** button — it runs DDG-lite/OSM discovery for the destination and lets you append any result to the trip as a flagged hidden-gem lead with one click. When the keyless engines throttle, the manual kit above still works, and self-hosting SearXNG makes auto-discovery fully reliable forever.
