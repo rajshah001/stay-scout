@@ -93,7 +93,7 @@ async function runPlanner(cfg: TripConfig, emit: Emit): Promise<void> {
         role: "user",
         content: `Trip: ${cfg.destinations.join(", ")} | ${dateRangeNote(cfg)} | ${cfg.adults} working adults | currency ${cfg.currency} | seating preference: ${cfg.seating} | must-have: wifi=${cfg.mustHaveWifi}, workspace=${cfg.mustHaveWorkspace}, guestFavouriteOnly=${cfg.guestFavouriteOnly} | budget: ${cfg.budgetPerMonth || "flexible"} | extra: ${cfg.extraNotes || "none"}.
 
-Return JSON: {"normalizedDestinations": ["primary town/village name per destination, with region, e.g. 'Madikeri, Coorg, Karnataka'"], "coordinates": [{"name": "exact normalized destination string", "lat": number, "lng": number}], "pockets": [{"near": "exact normalized destination string", "names": ["2-4 lesser-known micro-localities, villages or offbeat pockets where travelers actually stay within reach of that destination, e.g. 'Chongey Tar, Gangtok' or 'Okhrey, West Sikkim'"]}], "seasonNote": "one line on weather/peak season for the dates", "risks": ["one-line risks to watch, e.g. peak surge, landslide zones, wifi-weak areas"]}`,
+Return JSON: {"normalizedDestinations": ["primary town/village name per destination, with region, e.g. 'Madikeri, Coorg, Karnataka'"], "coordinates": [{"name": "exact normalized destination string", "lat": number, "lng": number}], "pockets": [{"near": "exact normalized destination string", "names": ["2-4 lesser-known micro-localities, villages or offbeat pockets where travelers actually stay within reach of that destination, e.g. 'Chongey Tar, Gangtok' or 'Okhrey, West Sikkim'"]}], "surroundings": [{"near": "exact normalized destination string", "names": ["up to 3 neighboring towns/villages within roughly 45 minutes that have their own stay stock, e.g. 'Virajpet (25 min from Madikeri)'"]}], "seasonNote": "one line on weather/peak season for the dates", "risks": ["one-line risks to watch, e.g. peak surge, landslide zones, wifi-weak areas"]}`,
       },
     ],
     { json: true, temperature: 0.2, maxTokens: 1600 },
@@ -102,6 +102,7 @@ Return JSON: {"normalizedDestinations": ["primary town/village name per destinat
     normalizedDestinations: string[];
     coordinates?: { name: string; lat: number; lng: number }[];
     pockets?: { near: string; names: string[] }[];
+    surroundings?: { near: string; names: string[] }[];
     seasonNote: string;
     risks: string[];
   }>(raw);
@@ -125,6 +126,10 @@ Return JSON: {"normalizedDestinations": ["primary town/village name per destinat
   (cfg as TripConfig & { __pockets?: Record<string, string[]> }).__pockets =
     Object.fromEntries(
       (plan.pockets ?? []).map((p) => [p.near, p.names ?? []]),
+    );
+  (cfg as TripConfig & { __surroundings?: Record<string, string[]> }).__surroundings =
+    Object.fromEntries(
+      (plan.surroundings ?? []).map((p) => [p.near, p.names ?? []]),
     );
 }
 
@@ -163,13 +168,27 @@ async function scoutOne(
     ? `\nMicro-localities you MUST also consider for hidden gems (small homestays in these pockets are exactly what mainstream lists miss): ${pocketNames.join("; ")}`
     : "";
 
+  const surroundingsMap =
+    (cfg as TripConfig & { __surroundings?: Record<string, string[]> }).__surroundings;
+  const surroundingNames: string[] = [];
+  for (const [near, names] of Object.entries(surroundingsMap ?? {})) {
+    if (place.includes(near.split(",")[0].trim()) || near.includes(place.split(",")[0].trim())) {
+      surroundingNames.push(...names);
+    }
+  }
+  const surroundingsNote = surroundingNames.length
+    ? `\nNEIGHBORING TOWNS you MUST also scan for stock (flag matching candidates with "alternative area — <approx drive time> away"): ${surroundingNames.join("; ")}`
+    : "";
+
   const user = `Research destination: ${place}
 Trip window: ${dateRangeNote(cfg)} · ${cfg.adults} working adults · currency ${cfg.currency} · budget ${cfg.budgetPerMonth || "flexible"}
 ${seatingNote}
 Hard filters: wifi-for-calls=${cfg.mustHaveWifi} · dedicated workspace=${cfg.mustHaveWorkspace} · guest-favourite-only=${cfg.guestFavouriteOnly}
-Extra context from the team lead: ${cfg.extraNotes || "none"}${pocketsNote}
+Extra context from the team lead: ${cfg.extraNotes || "none"}${pocketsNote}${surroundingsNote}
 
 Produce the shortlist JSON now. If stock for this destination is genuinely thin (small village), say so in the tagline/flags and include the best realistic alternative within reach, flagged in flags as "alternative area".
+
+SURROUNDING TOWNS (required): include 1–2 candidates from the neighboring towns listed above when they add real value (better price, better stock or better fit), each flagged "alternative area — <drive time> away". This ensures the group sees everything bookable around their base, not just inside it.
 
 HIDDEN-GEM TIER (required): include 1–2 "hidden gem lead" entries — small, under-reviewed, single-platform or Instagram/word-of-mouth-marketed properties in micro-localities that mainstream lists miss. Mark each with flag "hidden gem lead — low review mass, verify on platform/socials before booking". Set their evidence fields honestly (wifiEvidence: "unverified — confirm with host") and keep priceLow/priceHigh as honest bands. A hidden-gem lead counts toward your 4–6 candidates only if it does not displace a better-evidenced option; otherwise extend to at most 7 total.`;
 
